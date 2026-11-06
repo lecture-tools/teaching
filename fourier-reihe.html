@@ -1,0 +1,673 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Fourier-Reihe</title>
+
+  <!-- PyScript: führt main.py mit numpy und matplotlib im Browser aus -->
+  <link rel="stylesheet" href="https://pyscript.net/releases/2026.7.3/core.css">
+  <script type="module" src="https://pyscript.net/releases/2026.7.3/core.js"></script>
+
+  <!-- KaTeX: Formeldarstellung -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.11/katex.min.css">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.11/katex.min.js"></script>
+
+  <style>
+:root {
+  --bg: #ffffff;
+  --surface: #f5f6f8;
+  --card: #ffffff;
+  --fg: #1d1d1f;
+  --muted: #6b6b72;
+  --border: #dcdde2;
+  --accent: #1f6fd1;
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #141416;
+    --surface: #1c1c20;
+    --card: #232328;
+    --fg: #e8e8ea;
+    --muted: #9c9ca4;
+    --border: #34343b;
+    --accent: #6aa8ff;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font: 16px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+/* Eigener Container, damit Elemente, die PyScript in <body> einfügt, das Layout nicht verschieben */
+.app {
+  display: grid;
+  grid-template-columns: 380px 1fr;
+  height: 100vh;
+  height: 100dvh;
+}
+
+/* --- Seitenleiste ------------------------------------------------------- */
+
+#controls {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  padding: 28px 24px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+}
+
+h1 { margin: 0 0 8px; font-size: 1.75rem; font-weight: 650; letter-spacing: -0.01em; }
+.series { margin: 0; color: var(--muted); font-size: 0.95rem; }
+.series .katex-display { margin: 0; }
+.series .katex-display > .katex { text-align: left; }
+
+fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+legend {
+  padding: 0;
+  margin-bottom: 10px;
+  font-size: 0.78rem;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.options { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  line-height: 1.25;
+  hyphens: manual;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.option:hover { border-color: color-mix(in srgb, var(--accent) 50%, var(--border)); }
+.option:has(input:checked) {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+/* Eigene Radiobuttons, damit sie in allen Browsern gleich aussehen */
+.option input {
+  appearance: none;
+  flex: none;
+  margin: 0;
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--muted);
+  border-radius: 50%;
+  display: grid;
+  place-content: center;
+}
+.option input:checked { border-color: var(--accent); }
+.option input:checked::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.name { font-weight: 600; min-width: 0; }
+
+/* Formeln der ausgewählten Funktion; ausgeblendet, wenn „Formeln anzeigen“ aus ist */
+.formula-box {
+  margin-top: -14px;
+  padding: 12px 14px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.formula { display: none; flex-direction: column; gap: 4px; font-size: 0.95rem; }
+#controls:has(input[value="saw"]:checked)      .formula[data-func="saw"],
+#controls:has(input[value="triangle"]:checked) .formula[data-func="triangle"],
+#controls:has(input[value="rect"]:checked)     .formula[data-func="rect"],
+#controls:has(input[value="pulse"]:checked)    .formula[data-func="pulse"],
+#controls:has(input[value="half"]:checked)     .formula[data-func="half"],
+#controls:has(input[value="full"]:checked)     .formula[data-func="full"],
+#controls:has(input[value="cos"]:checked)      .formula[data-func="cos"] { display: flex; }
+#controls:has(#formulas:not(:checked)) .formula-box { display: none; }
+
+.sliders { display: flex; flex-direction: column; }
+.slider { display: block; }
+.slider + .slider { margin-top: 18px; }
+.slider-head { display: flex; align-items: baseline; gap: 6px; font-weight: 500; }
+.slider input { width: 100%; margin: 8px 0 0; accent-color: var(--accent); }
+output {
+  margin-left: auto;
+  min-width: 3ch;
+  text-align: right;
+  font-size: 1.15rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+}
+
+/* Schalter für „Einzelne Schwingungen anzeigen“ */
+.toggle { display: flex; align-items: center; gap: 12px; cursor: pointer; font-weight: 500; }
+.toggle + .toggle { margin-top: 12px; }
+.toggle input {
+  appearance: none;
+  flex: none;
+  margin: 0;
+  width: 40px;
+  height: 22px;
+  border-radius: 11px;
+  background: var(--border);
+  position: relative;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.toggle input::before {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.15s;
+}
+.toggle input:checked { background: var(--accent); }
+.toggle input:checked::before { transform: translateX(18px); }
+
+/* --- Plots -------------------------------------------------------------- */
+
+#plots {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  margin: 20px 28px 20px 20px;
+}
+#plot { position: absolute; inset: 0; width: 100%; height: 100%; }
+#plot:not([src]) { display: none; }
+.loading {
+  position: absolute; inset: 0;
+  display: grid; place-items: center;
+  color: var(--muted);
+}
+body.ready .loading { display: none; }
+
+/* --- Schmale Bildschirme: alles untereinander ---------------------------- */
+
+@media (max-width: 900px) {
+  .app { display: block; height: auto; }
+  #controls { border-right: 0; border-bottom: 1px solid var(--border); padding: 20px 16px; gap: 22px; }
+  #plots { height: 760px; margin: 12px 16px 24px; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside id="controls">
+    <header>
+      <h1>Fourier-Reihe</h1>
+      <p class="series" data-tex="\begin{aligned} y(t) = A_0 &+ \sum_{n=1}^{N} \big[ A_n \cos(2\pi n f_0 t) \\ &+ B_n \sin(2\pi n f_0 t) \big] \end{aligned}"></p>
+    </header>
+
+    <fieldset>
+      <legend>Funktion</legend>
+      <div class="options">
+        <label class="option">
+          <input type="radio" name="func" value="saw" checked>
+          <span class="name">Sägezahn</span>
+        </label>
+        <label class="option">
+          <input type="radio" name="func" value="triangle">
+          <span class="name">Dreieck</span>
+        </label>
+        <label class="option">
+          <input type="radio" name="func" value="rect">
+          <span class="name">Rechteck</span>
+        </label>
+        <label class="option">
+          <input type="radio" name="func" value="pulse">
+          <span class="name">Pulsfolge</span>
+        </label>
+        <label class="option">
+          <input type="radio" name="func" value="half">
+          <span class="name">Einweg&shy;gleichrichtung</span>
+        </label>
+        <label class="option">
+          <input type="radio" name="func" value="full">
+          <span class="name">Zweiweg&shy;gleichrichtung</span>
+        </label>
+        <label class="option">
+          <input type="radio" name="func" value="cos">
+          <span class="name">Cosinus-Superposition</span>
+        </label>
+      </div>
+    </fieldset>
+
+    <div class="formula-box">
+      <div class="formula" data-func="saw">
+        <span data-tex="A_n = -\frac{2}{n\pi}\sin\left(\frac{n\pi}{2}\right)"></span>
+        <span data-tex="B_n = \frac{2}{n\pi}\cos\left(\frac{n\pi}{2}\right)"></span>
+      </div>
+      <div class="formula" data-func="triangle">
+        <span data-tex="A_n = 0"></span>
+        <span data-tex="B_n = \frac{8}{(n\pi)^2}\,(-1)^{\frac{n-1}{2}}\quad n \text{ ungerade}"></span>
+        <span data-tex="B_n = 0\quad n \text{ gerade}"></span>
+      </div>
+      <div class="formula" data-func="rect">
+        <span data-tex="A_n = 0"></span>
+        <span data-tex="B_n = \frac{4}{n\pi}\quad n \text{ ungerade}"></span>
+        <span data-tex="B_n = 0\quad n \text{ gerade}"></span>
+      </div>
+      <div class="formula" data-func="pulse">
+        <span data-tex="\text{Tastgrad } \tfrac{1}{4}:\quad A_0 = \tfrac{1}{4}"></span>
+        <span data-tex="A_n = \frac{2}{n\pi}\sin\left(\frac{n\pi}{4}\right),\quad B_n = 0"></span>
+      </div>
+      <div class="formula" data-func="half">
+        <span data-tex="A_0 = \tfrac{1}{\pi},\quad B_1 = \tfrac{1}{2}"></span>
+        <span data-tex="A_n = -\frac{2}{\pi\,(n^2-1)}\quad n \text{ gerade}"></span>
+        <span data-tex="\text{sonst } A_n = 0,\ B_n = 0"></span>
+      </div>
+      <div class="formula" data-func="full">
+        <span data-tex="A_0 = \tfrac{2}{\pi}"></span>
+        <span data-tex="A_n = -\frac{4}{\pi\,(4n^2-1)},\quad B_n = 0"></span>
+      </div>
+      <div class="formula" data-func="cos">
+        <span data-tex="A_1 = \tfrac{1}{2},\ A_2 = \tfrac{2}{3},\ A_{10} = \tfrac{1}{3}"></span>
+        <span data-tex="\text{sonst } A_n = 0,\quad B_n = 0"></span>
+      </div>
+    </div>
+
+    <fieldset class="sliders">
+      <legend>Parameter</legend>
+      <label class="slider">
+        <span class="slider-head">Zusätzlicher Gleichanteil<output id="dc-value">0.0</output></span>
+        <input type="range" id="dc" min="-0.8" max="0.8" step="0.1" value="0">
+      </label>
+      <label class="slider">
+        <span class="slider-head">Anzahl Koeffizienten <span data-tex="N"></span><output id="n-value">1</output></span>
+        <input type="range" id="n" min="1" max="20" step="1" value="1">
+      </label>
+    </fieldset>
+
+    <fieldset>
+      <legend>Anzeige</legend>
+      <label class="toggle">
+        <input type="checkbox" id="parts">
+        <span>Einzelne Schwingungen anzeigen</span>
+      </label>
+      <label class="toggle">
+        <input type="checkbox" id="target">
+        <span>Zielfunktion anzeigen</span>
+      </label>
+      <label class="toggle">
+        <input type="checkbox" id="error">
+        <span>Fehler anzeigen</span>
+      </label>
+      <label class="toggle">
+        <input type="checkbox" id="formulas" checked>
+        <span>Formeln anzeigen</span>
+      </label>
+    </fieldset>
+  </aside>
+
+  <main id="plots">
+    <div class="loading">Python wird geladen …</div>
+    <img id="plot" alt="Zeitsignal und Amplitudenspektrum der Fourier-Reihe">
+  </main>
+</div>
+
+  <script>
+    window.addEventListener("DOMContentLoaded", () => {
+      document.querySelectorAll("[data-tex]").forEach(el =>
+        katex.render(el.dataset.tex, el, { throwOnError: false, displayMode: el.classList.contains("series") }));
+    });
+  </script>
+
+  <script type="py" config='{"packages": ["numpy", "matplotlib"]}'>
+"""Fourier-Reihen-Demonstrator – PyScript-Version.
+
+Die Berechnung entspricht der ursprünglichen tkinter-App (original_tkinter/classes.py).
+Die Oberfläche (Radiobuttons, Slider, Formeln) steht jetzt in index.html,
+Python liest die Werte von dort und zeichnet die Plots mit matplotlib.
+"""
+
+import base64
+import colorsys
+import io
+from types import SimpleNamespace
+
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+from matplotlib.ticker import MaxNLocator
+import numpy as np
+
+from js import document, window, setTimeout
+from pyodide.ffi import create_proxy
+
+
+FUNC_NAMES = {
+    "saw": "Sägezahn",
+    "triangle": "Dreieck",
+    "rect": "Rechteck",
+    "pulse": "Pulsfolge",
+    "half": "Einweggleichrichtung",
+    "full": "Zweiweggleichrichtung",
+    "cos": "Cosinus-Superposition",
+}
+N_MAX = 20  # wie max im Slider "n" in index.html
+
+# Farben passend zu den CSS-Variablen in style.css
+THEMES = {
+    "light": {"fg": "#1d1d1f", "muted": "#6b6b72", "grid": "#9a9aa2", "line": "#1f6fd1", "target": "#e0662b"},
+    "dark":  {"fg": "#e8e8ea", "muted": "#9c9ca4", "grid": "#6a6a72", "line": "#6aa8ff", "target": "#f2a46d"},
+}
+
+plt.rcParams.update({
+    "font.size": 13,
+    "axes.titlesize": 15,
+    "axes.titlelocation": "left",
+    "axes.titlepad": 12,
+    "axes.labelsize": 14,
+    "axes.spines.top": False,
+    "axes.spines.right": False,
+    "lines.linewidth": 2.2,
+})
+
+
+def fourier_coefficients(func_choice, n_coef):
+    """Liefert A_0 und die Arrays A_n, B_n für n = 1 … n_coef."""
+    A0 = {"pulse": 1/4, "half": 1/np.pi, "full": 2/np.pi}.get(func_choice, 0)
+    A, B = [], []
+    for i in range(n_coef):
+        n = i + 1
+        An, Bn = 0, 0
+        if func_choice == "saw":
+            An = -2/(n*np.pi)*np.sin(n*np.pi/2)
+            Bn = 2/(n*np.pi)*np.cos(n*np.pi/2)
+        elif func_choice == "triangle":
+            if n % 2 == 1:
+                Bn = 8/(n**2*np.pi**2)*(-1)**((n-1)//2)
+        elif func_choice == "rect":
+            if n % 2 == 1:
+                Bn = 4/(n*np.pi)
+        elif func_choice == "pulse":
+            An = 2/(n*np.pi)*np.sin(n*np.pi/4)
+        elif func_choice == "half":
+            if n == 1:
+                Bn = 1/2
+            elif n % 2 == 0:
+                An = -2/(np.pi*(n**2 - 1))
+        elif func_choice == "full":
+            An = -4/(np.pi*(4*n**2 - 1))
+        elif func_choice == "cos":
+            An = {1: 0.5, 2: 2/3, 10: 1/3}.get(n, 0)
+        A.append(An)
+        B.append(Bn)
+    return A0, np.array(A, dtype=float), np.array(B, dtype=float)
+
+
+def target_function(func_choice, t):
+    """Die ideale Funktion, gegen die die Fourier-Reihe konvergiert (ohne zusätzlichen Gleichanteil)."""
+    x = 2*np.pi*t
+    if func_choice == "saw":
+        return 1 - 2*((t - 0.25) % 1)          # fällt von 1 auf -1, Sprung bei t = 1/4
+    if func_choice == "triangle":
+        return 2/np.pi*np.arcsin(np.sin(x))
+    if func_choice == "rect":
+        return np.sign(np.sin(x))
+    if func_choice == "pulse":
+        return (np.abs((t + 0.5) % 1 - 0.5) < 1/8).astype(float)  # Breite T/4 um t = 0
+    if func_choice == "half":
+        return np.maximum(np.sin(x), 0)
+    if func_choice == "full":
+        return np.abs(np.sin(np.pi*t))
+    if func_choice == "cos":
+        return 0.5*np.cos(x) + 2/3*np.cos(2*x) + 1/3*np.cos(10*x)
+    return np.zeros_like(t)
+
+
+def partial_sums(A0, A, B, t):
+    """Teilsummen für N = 1 … len(A) als Matrix (eine Zeile pro N)."""
+    n = np.arange(1, len(A) + 1)[:, None]
+    parts = A[:, None]*np.cos(n*2*np.pi*t) + B[:, None]*np.sin(n*2*np.pi*t)
+    return A0 + np.cumsum(parts, axis=0)
+
+
+class FourierApp:
+    def __init__(self):
+        self.img = document.getElementById("plot")
+        self.plots = document.getElementById("plots")
+        self.fig = None
+        self.layout = None
+        self.render_pending = False
+
+        # Proxies müssen erhalten bleiben, solange die Event-Handler aktiv sind
+        self._on_input = create_proxy(self.on_input)
+        self._render = create_proxy(self.render)
+
+        for el in document.querySelectorAll("#controls input"):
+            el.addEventListener("input", self._on_input)
+        window.addEventListener("resize", self._on_input)
+        window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", self._on_input)
+
+        self.render()
+        document.body.classList.add("ready")
+
+    # --- Eingaben -------------------------------------------------------------
+
+    def read_inputs(self):
+        checked = document.querySelector('input[name="func"]:checked')
+        return SimpleNamespace(
+            func_choice=checked.value if checked else "",
+            dc=float(document.getElementById("dc").value) + 0.0,  # + 0.0 macht aus -0.0 eine 0.0
+            n_coef=int(document.getElementById("n").value),
+            show_parts=bool(document.getElementById("parts").checked),
+            show_target=bool(document.getElementById("target").checked),
+            show_error=bool(document.getElementById("error").checked),
+        )
+
+    def update_value_labels(self):
+        inp = self.read_inputs()
+        document.getElementById("dc-value").textContent = f"{inp.dc:.1f}"
+        document.getElementById("n-value").textContent = str(inp.n_coef)
+
+    def on_input(self, event=None):
+        # Bei schnellem Ziehen am Slider nur einmal neu zeichnen, mit dem jeweils aktuellen Wert
+        self.update_value_labels()
+        if not self.render_pending:
+            self.render_pending = True
+            setTimeout(self._render, 0)
+
+    # --- Zeichnen -------------------------------------------------------------
+
+    def ensure_figure(self, show_error):
+        """Plots füllen die Plotfläche: untereinander, auf sehr breiten Flächen nebeneinander."""
+        self.width_px = max(int(self.plots.clientWidth), 320)
+        self.height_px = max(int(self.plots.clientHeight), 400)
+        wide = self.width_px / self.height_px > 2.2
+        layout = (wide, show_error)
+        if layout != self.layout:
+            if self.fig is not None:
+                plt.close(self.fig)
+            count = 3 if show_error else 2
+            ratios = [1.5, 1.2, 1][:count]
+            if wide:
+                self.fig, axes = plt.subplots(1, count, layout="constrained")
+            else:
+                self.fig, axes = plt.subplots(count, 1, layout="constrained",
+                                              gridspec_kw={"height_ratios": ratios})
+            self.fig.get_layout_engine().set(h_pad=0.15, w_pad=0.15, hspace=0.08, wspace=0.06)
+            self.ax, self.ax2 = axes[0], axes[1]
+            self.ax3 = axes[2] if show_error else None
+            self.layout = layout
+        # 100 px pro Zoll → Schriftgrößen bleiben unabhängig von der Fenstergröße gleich
+        self.fig.set_size_inches(self.width_px/100, self.height_px/100)
+
+    def render(self, *args):
+        self.render_pending = False
+        self.update_value_labels()
+        inp = self.read_inputs()
+        self.ensure_figure(inp.show_error)
+        self.update_plot(inp)
+
+        # Scharf auf Retina-Displays, aber höchstens ~4 Megapixel, damit es flüssig bleibt
+        scale = min(float(window.devicePixelRatio or 1), 2, (4e6/(self.width_px*self.height_px))**0.5)
+        buf = io.BytesIO()
+        self.fig.savefig(buf, format="png", dpi=100*scale, transparent=True)
+        self.img.src = "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
+
+    def update_plot(self, inp):
+        axes = [ax for ax in (self.ax, self.ax2, self.ax3) if ax is not None]
+        for ax in axes:
+            ax.clear()
+
+        dark = window.matchMedia("(prefers-color-scheme: dark)").matches
+        colors = THEMES["dark" if dark else "light"]
+
+        if not inp.func_choice:
+            # Keine Funktion ausgewählt → leere Plots
+            self.ax.set_title("Keine Funktion ausgewählt")
+        else:
+            A0, A, B = fourier_coefficients(inp.func_choice, inp.n_coef)
+            self.plot_signal(inp, A0, A, B, colors, dark)
+            self.plot_spectrum(inp, A0, A, B, colors, dark)
+            if self.ax3 is not None:
+                self.plot_error(inp, colors)
+
+        self.format_axes(colors)
+        for ax in axes:
+            self.style_axes(ax, colors)
+
+    def plot_signal(self, inp, A0, A, B, colors, dark):
+        t = np.linspace(-2, 2, 1000)
+        dc = A0 + inp.dc
+
+        y = np.full_like(t, dc)
+        parts = []
+        for i in range(inp.n_coef):
+            n = i + 1
+            part = A[i]*np.cos(n*2*np.pi*t) + B[i]*np.sin(n*2*np.pi*t)
+            parts.append(part)
+            y = part + y
+
+        if inp.show_target:
+            t_fine = np.linspace(-2, 2, 4001)  # feiner, damit Sprünge senkrecht aussehen
+            self.ax.plot(t_fine, target_function(inp.func_choice, t_fine) + inp.dc,
+                         color=colors["target"], linewidth=1.8, linestyle="--", label="Zielfunktion", zorder=2)
+
+        if inp.show_parts:
+            if dc != 0:
+                self.ax.axhline(dc, color=colors["muted"], linewidth=1.2, linestyle=":")
+            for i, part in enumerate(parts):
+                if np.hypot(A[i], B[i]) > 1e-9:
+                    self.ax.plot(t, part, color=self.harmonic_color(i + 1, dark), linewidth=1.5, alpha=0.9)
+            self.ax.plot(t, y, color=colors["fg"], linewidth=2.6, label="Teilsumme", zorder=3)
+        else:
+            self.ax.plot(t, y, color=colors["line"], label="Teilsumme", zorder=3)
+
+        if inp.show_target:
+            self.ax.legend(loc="upper right", frameon=False, labelcolor=colors["fg"], fontsize=12)
+        self.ax.set_title(f"{FUNC_NAMES[inp.func_choice]} mit n={inp.n_coef} und DC={inp.dc:.1f}")
+
+    def plot_spectrum(self, inp, A0, A, B, colors, dark):
+        # Spektrum exakt aus den Koeffizienten statt per FFT: |Y_n| = sqrt(A_n² + B_n²).
+        # So gibt es keinen Leckeffekt und auch kleine Harmonische (z. B. Dreieck, n ≥ 11) bleiben sichtbar.
+        freq = np.arange(0, inp.n_coef + 1)
+        amp = np.concatenate(([abs(A0 + inp.dc)], np.hypot(A, B)))
+        mask = amp > 1e-9  # numerisches Rauschen von sin(n·π/2) usw. ausblenden
+
+        # Farbe je Frequenz: einheitlich, oder pro Harmonischer eine eigene (gleich in beiden Plots)
+        if inp.show_parts:
+            stem_colors = [colors["muted"]] + [self.harmonic_color(n, dark) for n in range(1, inp.n_coef + 1)]
+        else:
+            stem_colors = [colors["line"]]*(inp.n_coef + 1)
+
+        visible_colors = [c for c, m in zip(stem_colors, mask) if m]
+        self.ax2.vlines(freq[mask], 0, amp[mask], colors=visible_colors, linewidth=2.2)
+        self.ax2.scatter(freq[mask], amp[mask], color=visible_colors, s=64, zorder=3)
+        self.ax2.set_title("Amplitudenspektrum")
+
+        # Rechteck (4/π ≈ 1,27) und große Gleichanteile passen nicht in 0 … 0,9
+        self.spectrum_top = max(0.9, 1.1*amp.max())
+
+    def plot_error(self, inp, colors):
+        """Effektivwert der Abweichung zwischen Zielfunktion und Teilsumme für N = 1 … N_MAX."""
+        t = np.linspace(0, 1, 2000, endpoint=False)  # eine Periode genügt
+        A0, A, B = fourier_coefficients(inp.func_choice, N_MAX)
+        sums = partial_sums(A0, A, B, t)
+        error = np.sqrt(np.mean((target_function(inp.func_choice, t) - sums)**2, axis=1))
+
+        N = np.arange(1, N_MAX + 1)
+        bar_colors = [colors["line"] if k == inp.n_coef else colors["grid"] for k in N]
+        self.ax3.bar(N, error, color=bar_colors, width=0.7)
+        self.ax3.set_title(f"Fehler der Teilsumme: {error[inp.n_coef - 1]:.3f} bei n={inp.n_coef}")
+        self.error_top = max(1.15*error.max(), 0.05)
+
+    def format_axes(self, colors):
+        # --- Achse 1 anpassen ---
+        self.ax.set_ylim(-2, 2)
+        self.ax.set_yticks([-2, -1, 0, 1, 2])
+        self.ax.set_xticks([-2, -1, 0, 1, 2])
+        self.ax.set_xlabel(r'$t/T_0$')
+        self.ax.set_ylabel(r'$y$')
+
+        # --- Achse 2 anpassen ---
+        top = getattr(self, "spectrum_top", 0.9)
+        self.ax2.set_ylim(0, top)
+        self.ax2.set_xlim(-1, 21)
+        self.ax2.set_xticks(np.arange(0, 21, 1))
+        self.ax2.yaxis.set_major_locator(MaxNLocator(nbins=6))  # passt die Teilung an die Plothöhe an
+        self.ax2.set_xticklabels([str(k) if k % 5 == 0 else '' for k in range(21)])
+        self.ax2.set_xlabel(r'$f/f_0$')
+        self.ax2.set_ylabel(r'$|Y|$')
+
+        # --- Achse 3 (Fehler) anpassen ---
+        if self.ax3 is not None:
+            self.ax3.set_xlim(0, 21)
+            self.ax3.set_ylim(0, getattr(self, "error_top", 1))
+            self.ax3.set_xticks(np.arange(0, 21, 1))
+            self.ax3.set_xticklabels([str(k) if k % 5 == 0 else '' for k in range(21)])
+            self.ax3.set_xlabel('n (Anzahl Koeffizienten)')
+            self.ax3.set_ylabel('Effektivwert')
+
+    def harmonic_color(self, n, dark):
+        """Feste Farbe pro Harmonischer n (ändert sich nicht, wenn N verstellt wird).
+
+        Der Farbton springt pro n um den goldenen Winkel weiter, so sind benachbarte
+        Harmonische immer gut zu unterscheiden.
+        """
+        hue = (0.6 + n*0.381966) % 1.0
+        lightness = 0.68 if dark else 0.45
+        return colorsys.hls_to_rgb(hue, lightness, 0.75)
+
+    def style_axes(self, ax, colors):
+        """Achsenfarben für Hell/Dunkel; der Hintergrund bleibt transparent."""
+        ax.set_facecolor("none")
+        ax.grid(True, color=colors["grid"], linestyle='-', linewidth=0.6, alpha=0.35)
+        ax.set_axisbelow(True)
+        ax.tick_params(color=colors["muted"], labelcolor=colors["muted"])
+        for spine in ax.spines.values():
+            spine.set_color(colors["muted"])
+        title_size = 15 if self.width_px >= 600 else 12  # auf dem Handy passt der Titel sonst nicht
+        ax.set_title(ax.get_title(loc="left"), loc="left", color=colors["fg"], fontsize=title_size)
+        ax.xaxis.label.set_color(colors["muted"])
+        ax.yaxis.label.set_color(colors["muted"])
+
+
+app = FourierApp()
+</script>
+</body>
+</html>
