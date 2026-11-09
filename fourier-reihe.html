@@ -204,12 +204,19 @@ output {
   #controls { border-right: 0; border-bottom: 1px solid var(--border); padding: 20px 16px; gap: 22px; }
   #plots { height: 760px; margin: 12px 16px 24px; }
 }
+
+/* TUM-Logo: TUM-Blau, auf dunklem Hintergrund weiß */
+.tum-logo { flex: none; width: auto; color: #0065bd; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .tum-logo { color: #ffffff; } }
+:root[data-theme="dark"] .tum-logo { color: #ffffff; }
+header .tum-logo { display: block; height: 26px; margin-bottom: 12px; }
 </style>
 </head>
 <body>
 <div class="app">
   <aside id="controls">
     <header>
+      <svg class="tum-logo" viewBox="0 0 269 142" role="img" aria-label="Technische Universität München"><path fill="currentColor" fill-rule="evenodd" d="M 24.09 25.53 L 24.09 141.93 L 49.35 141.93 L 49.35 25.66 L 77.45 25.66 L 77.45 141.93 L 157.82 141.93 L 157.82 26.91 L 186.35 26.91 L 186.35 141.87 L 212.87 141.87 L 212.87 26.91 L 241.79 26.91 L 241.79 141.87 L 268.31 141.87 L 268.31 0.33 L 132.37 0.33 L 132.37 116.17 L 103.21 116.17 L 103.21 0.39 L 0.10 0.39 L 0.10 25.53 L 24.09 25.53"/></svg>
       <h1>Fourier-Reihe</h1>
       <p class="course">Vorlesung Grundlagen der Informationstechnik, Prof.&nbsp;Hanik</p>
       <p class="series" data-tex="\begin{aligned} y(t) = A_0 &+ \sum_{n=1}^{N} \big[ A_n \cos(2\pi n f_0 t) \\ &+ B_n \sin(2\pi n f_0 t) \big] \end{aligned}"></p>
