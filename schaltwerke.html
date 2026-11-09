@@ -1,0 +1,1545 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Schaltwerke</title>
+<style>
+:root {
+  --bg: #f4f6f9; --panel: #ffffff; --border: #d8dde4; --border-soft: #eceff3;
+  --text: #1b2230; --muted: #5d6877; --accent: #0065bd; --accent-text: #ffffff;
+  --one: #e8590c; --one-soft: #ffe8d9; --zero: #9aa4b1; --lamp-on: #ffb000;
+  --body: #ffffff; --body-stroke: #3b4452; --canvas: #fbfcfd; --grid: #cfd5dd;
+  --warn: #9a6200; --btn: #eef1f5; --btn-hover: #e1e6ed; --note-bg: #eaf3fc;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #10141a; --panel: #181d25; --border: #2b333f; --border-soft: #222934;
+    --text: #e4e8ee; --muted: #98a3b3; --accent: #4a9be6; --accent-text: #0b1320;
+    --one: #ff8c42; --one-soft: #4a2a14; --zero: #5d6877; --lamp-on: #ffc93c;
+    --body: #1e252f; --body-stroke: #c9d1db; --canvas: #141920; --grid: #2f3845;
+    --warn: #e0a63c; --btn: #222935; --btn-hover: #2b3442; --note-bg: #15243a;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #10141a; --panel: #181d25; --border: #2b333f; --border-soft: #222934;
+  --text: #e4e8ee; --muted: #98a3b3; --accent: #4a9be6; --accent-text: #0b1320;
+  --one: #ff8c42; --one-soft: #4a2a14; --zero: #5d6877; --lamp-on: #ffc93c;
+  --body: #1e252f; --body-stroke: #c9d1db; --canvas: #141920; --grid: #2f3845;
+  --warn: #e0a63c; --btn: #222935; --btn-hover: #2b3442; --note-bg: #15243a;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg); color: var(--text);
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  display: flex; flex-direction: column; height: 100vh;
+}
+h1 { font-size: 17px; margin: 0; }
+h3 { font-size: 13px; margin: 0 0 4px; }
+.muted { color: var(--muted); }
+.sub { color: var(--muted); font-size: 12.5px; }
+
+header.top {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px 16px; flex-wrap: wrap;
+  padding: 10px 16px; border-bottom: 1px solid var(--border); background: var(--panel);
+}
+.tools { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+button, select, input[type=text] {
+  font: inherit; font-size: 13px; color: var(--text);
+  border: 1px solid var(--border); border-radius: 6px;
+}
+button { padding: 6px 12px; background: var(--btn); cursor: pointer; white-space: nowrap; }
+button:hover:not(:disabled) { background: var(--btn-hover); }
+button:disabled { opacity: .45; cursor: default; }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); font-weight: 600; }
+button.primary:hover:not(:disabled) { background: var(--accent); filter: brightness(1.08); }
+button.danger { color: #c8202c; }
+select, input[type=text] { padding: 5px 8px; background: var(--panel); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+main.layout { flex: 1; min-height: 0; display: grid; grid-template-columns: 236px minmax(0, 1fr); }
+aside.side {
+  border-right: 1px solid var(--border); background: var(--panel);
+  display: flex; flex-direction: column; min-height: 0; overflow: auto;
+}
+.palette { padding: 10px 12px; }
+.pal-group { margin-bottom: 10px; }
+.pal-group h4 {
+  margin: 0 0 6px; font-size: 11px; font-weight: 600; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .05em;
+}
+.pal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.pal-item {
+  border: 1px solid var(--border); border-radius: 6px; background: var(--panel);
+  padding: 4px 2px 3px; display: flex; flex-direction: column; align-items: center;
+  font-size: 11.5px; text-align: center; line-height: 1.2;
+  cursor: grab; user-select: none; touch-action: none;
+}
+.pal-item:hover { border-color: var(--accent); }
+.pal-item svg { width: 100%; height: 52px; }
+.ghost {
+  position: fixed; z-index: 50; pointer-events: none; width: 90px; height: 70px; opacity: .85;
+  transform: translate(-50%, -50%);
+}
+.props {
+  position: absolute; top: 12px; right: 20px; z-index: 5; width: 250px; max-height: calc(100% - 24px); overflow: auto;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, .14); padding: 12px; font-size: 12.5px;
+}
+.props[hidden] { display: none; }
+.props p { margin: 0 0 8px; }
+.props .close { position: absolute; top: 6px; right: 6px; padding: 2px 8px; border: 0; background: transparent; font-size: 16px; color: var(--muted); }
+.field { display: flex; flex-direction: column; gap: 3px; margin-bottom: 8px; }
+.check { display: flex; gap: 6px; align-items: flex-start; margin-bottom: 8px; cursor: pointer; }
+.check input { margin-top: 2px; }
+details.help { border-top: 1px solid var(--border); font-size: 12.5px; }
+details.help summary { cursor: pointer; padding: 8px 12px; font-weight: 600; font-size: 13px; }
+details.help ul { margin: 0; padding: 0 12px 12px 28px; }
+details.help li { margin-bottom: 4px; }
+
+section.stage { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+.toolbar {
+  display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+  padding: 8px 12px; border-bottom: 1px solid var(--border); background: var(--panel);
+}
+.toolbar .spacer { flex: 1; }
+.clk { font-size: 13px; color: var(--muted); }
+.clk b { display: inline-block; min-width: 1.2em; text-align: center; color: var(--text); }
+.clk b.one { color: var(--one); }
+.status { font-size: 12.5px; color: var(--warn); }
+.seg { display: inline-flex; align-items: center; }
+.seg-lbl { font-size: 13px; color: var(--muted); margin-right: 6px; }
+.seg input { position: absolute; opacity: 0; pointer-events: none; }
+.seg .opt { padding: 6px 12px; border: 1px solid var(--border); background: var(--btn); font-size: 13px; cursor: pointer; }
+.seg label:first-of-type .opt { border-radius: 6px 0 0 6px; }
+.seg label:last-of-type .opt { border-radius: 0 6px 6px 0; border-left: 0; }
+.seg input:checked + .opt { background: var(--panel); color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); font-weight: 600; }
+.seg input:focus-visible + .opt { outline: 2px solid var(--accent); outline-offset: 1px; }
+.zoom { display: inline-flex; }
+.zoom button { padding: 6px 10px; font-weight: 600; }
+.zoom button:first-child { border-radius: 6px 0 0 6px; }
+.zoom button:last-child { border-radius: 0 6px 6px 0; border-left: 0; }
+
+.canvas-area { position: relative; flex: 1; min-height: 0; display: flex; }
+.note {
+  display: flex; gap: 10px; align-items: flex-start; padding: 8px 8px 8px 12px;
+  background: var(--note-bg); border-bottom: 1px solid var(--border); font-size: 13px;
+}
+.note[hidden], .seg[hidden] { display: none; }
+.note-icon {
+  flex: none; width: 20px; height: 20px; border-radius: 50%; margin-top: 1px;
+  background: var(--accent); color: var(--accent-text); font: 700 13px/20px Georgia, serif; text-align: center;
+}
+.note-text { flex: 1; }
+.note-text p { margin: 0 0 2px; }
+.note .close { border: 0; background: transparent; font-size: 16px; color: var(--muted); padding: 0 8px; }
+.canvas { flex: 1; min-width: 0; overflow: auto; background: var(--canvas); }
+#svg { display: block; user-select: none; }
+#svg .gdot { fill: var(--grid); }
+#svg text { fill: var(--text); font: 12px system-ui, -apple-system, sans-serif; }
+#svg .name { font-weight: 600; font-size: 12.5px; }
+#svg .sym { font-weight: 600; font-size: 14px; }
+#svg .lbl { font-size: 12px; }
+#svg .small { font-size: 10.5px; fill: var(--muted); }
+#svg .big { font: 700 26px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+#svg .val { font: 700 18px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.body { fill: var(--body); stroke: var(--body-stroke); stroke-width: 1.5; }
+.on > .body, .body.on { fill: var(--one-soft); stroke: var(--one); }
+.bubble { fill: var(--body); stroke: var(--body-stroke); stroke-width: 1.8; }
+.tri { fill: none; stroke: var(--body-stroke); stroke-width: 1.5; }
+.dash { stroke: var(--body-stroke); stroke-width: 1; stroke-dasharray: 4 3; }
+.bar { stroke: var(--text); stroke-width: 1.2; }
+.wave { fill: none; stroke: var(--zero); stroke-width: 2; }
+.wave.one { stroke: var(--one); }
+.stub { stroke: var(--zero); stroke-width: 2; }
+.stub.one { stroke: var(--one); }
+.wire { fill: none; stroke: var(--zero); stroke-width: 2; stroke-linejoin: round; }
+.wire.one { stroke: var(--one); stroke-width: 2.5; }
+.wire-glow { fill: none; stroke: var(--accent); stroke-width: 7; opacity: .3; stroke-linejoin: round; }
+.wire-hit { fill: none; stroke: transparent; stroke-width: 12; cursor: pointer; }
+.wire-temp { fill: none; stroke: var(--accent); stroke-width: 2; stroke-dasharray: 5 4; pointer-events: none; }
+.lampc { fill: var(--body); stroke: var(--body-stroke); stroke-width: 1.5; }
+.lampc.lit { fill: var(--lamp-on); stroke: var(--one); }
+.pin-dot { fill: var(--zero); }
+.pin-hit { fill: transparent; cursor: crosshair; }
+.pin-hit:hover { fill: var(--accent); fill-opacity: .25; }
+.comp { cursor: move; }
+.toggle rect { fill: var(--btn); stroke: var(--zero); stroke-width: 1; }
+.toggle.on rect { fill: var(--one-soft); stroke: var(--one); stroke-width: 1.5; }
+.comp [data-toggle] { cursor: pointer; }
+.comp [data-toggle]:hover rect { stroke: var(--accent); }
+.selbox { fill: none; stroke: var(--accent); stroke-width: 1.5; stroke-dasharray: 4 3; }
+body.dragging, body.dragging * { cursor: grabbing !important; }
+/* Trennlinie über dem Ablaufdiagramm: Höhe per Ziehen */
+.hsplit { flex: none; height: 10px; margin: -5px 0; position: relative; z-index: 6; cursor: row-resize; touch-action: none; }
+.hsplit::after {
+  content: ""; position: absolute; left: 50%; top: 3px; width: 44px; height: 4px; margin-left: -22px;
+  border-radius: 2px; background: var(--border); transition: background .15s;
+}
+.hsplit:hover::after, .hsplit.active::after, .hsplit:focus-visible::after { background: var(--accent); }
+.hsplit:focus-visible { outline: none; }
+body.resizing-v, body.resizing-v * { cursor: row-resize !important; user-select: none; }
+
+.diagram { flex: none; height: 260px; border-top: 1px solid var(--border); background: var(--panel); display: flex; flex-direction: column; }
+.dia-head { display: flex; align-items: center; gap: 10px; padding: 6px 12px; border-bottom: 1px solid var(--border-soft); }
+.dia-head h2 { font-size: 13px; margin: 0; }
+.dia-head .hint { font-size: 12px; color: var(--muted); flex: 1; }
+.dia { flex: 1; min-height: 0; display: flex; overflow-y: auto; }
+.dia-labels { flex: none; width: 120px; border-right: 1px solid var(--border-soft); padding-top: 4px; }
+.dl { display: flex; align-items: center; padding: 0 10px; font-size: 12.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* so hoch wie der Inhalt, damit bei vielen Signalen keine Zeile abgeschnitten wird */
+.dia-scroll { flex: 1; min-width: 0; align-self: flex-start; overflow-x: auto; overflow-y: hidden; padding-top: 4px; }
+.dia-scroll svg { display: block; }
+.sig { fill: none; stroke: var(--one); stroke-width: 2; stroke-linejoin: round; }
+.sig-fill { fill: var(--one-soft); }
+.bus { fill: var(--one-soft); stroke: var(--one); stroke-width: 1.5; }
+.bus-txt { fill: var(--text); font: 600 11px ui-monospace, SFMono-Regular, Menlo, monospace; }
+/* Takt von fallender zu fallender Flanke: Grenzen durchgezogen, Taktmitte (steigende Flanke) gestrichelt */
+.tline-bound { stroke: var(--accent); stroke-width: 1.2; opacity: .7; }
+.tline-mid { stroke: var(--accent); stroke-width: 1.2; stroke-dasharray: 4 3; opacity: .7; }
+.edge-mid { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 2 3; opacity: .55; }
+.future { opacity: .45; }
+.now { stroke: var(--accent); stroke-width: 2; }
+.tnum { fill: var(--muted); font: 600 11px system-ui, -apple-system, sans-serif; }
+.tnum.cur { fill: var(--accent-text); font-weight: 700; }
+.tcur { fill: var(--accent); }
+.clk b.num { color: var(--accent); }
+.sig.pending { opacity: .5; stroke-dasharray: 3 2; }
+.rowline { stroke: var(--border-soft); }
+
+@media (max-width: 800px) {
+  body { height: auto; display: block; }
+  main.layout { grid-template-columns: minmax(0, 1fr); }
+  aside.side { border-right: 0; border-bottom: 1px solid var(--border); max-height: 45vh; }
+  section.stage { height: 90vh; }
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <div>
+    <h1>Schaltwerke</h1>
+    <div class="sub">Flipflops, Zähler und Register zum Ausprobieren</div>
+    <div class="sub">Vorlesung Grundlagen der Informationstechnik, Prof. Hanik</div>
+  </div>
+  <div class="tools">
+    <select id="examples" aria-label="Beispielschaltung"><option value="">Beispiel laden …</option></select>
+    <button id="btnNew">Neu</button>
+    <button id="btnOpen">Datei öffnen …</button>
+    <button id="btnSave">Speichern</button>
+    <input type="file" id="fileInput" accept=".json,application/json" hidden>
+  </div>
+</header>
+
+<main class="layout">
+  <aside class="side">
+    <div class="palette" id="palette"></div>
+    <details class="help" open>
+      <summary>So geht’s</summary>
+      <ul>
+        <li>Bausteine aus der Liste auf die Fläche ziehen (oder anklicken).</li>
+        <li>Verbinden: vom Anschluss eines Bausteins (kleiner Punkt) zum Anschluss eines anderen ziehen.</li>
+        <li>Schalter: Klick auf die Zahl schaltet zwischen 0 und 1 um. Klick auf den Rand oder den Namen wählt ihn nur aus, Ziehen verschiebt ihn.</li>
+        <li>Klick auf den Takteingang (Dreieck) setzt oder entfernt den Knubbel. Mit Knubbel schaltet das Flipflop bei fallender Flanke, sonst bei steigender.</li>
+        <li>Nicht verbundene Eingänge gelten als 0.</li>
+        <li>Die Zeit läuft in festen Rasterpunkten (4 pro Takt: steigende Flanke, Mitte, fallende Flanke, Mitte), im Ablaufdiagramm als senkrechte Linien. Schalter wechseln nur dort. Die blaue Linie im Ablaufdiagramm ist der aktuelle Zeitpunkt: Ein Schalter gilt ab dort, „Schritt“ zeichnet den nächsten Abschnitt. Ändert sich D gleichzeitig mit einer Flanke, gilt für das Flipflop noch der alte Wert.</li>
+        <li>Auswählen und <b>Entf</b> löscht, <b>Strg</b>+<b>Z</b> macht rückgängig, <b>→</b> ist ein Schritt, <b>Leertaste</b> ein ganzer Takt.</li>
+      </ul>
+    </details>
+  </aside>
+
+  <section class="stage">
+    <div class="toolbar">
+      <button id="btnStep" title="Einen Rasterpunkt weiter (Pfeiltaste →)">Schritt</button>
+      <button id="btnPulse" class="primary" title="Eine ganze Taktperiode weiter (Leertaste)">Takt-Impuls</button>
+      <button id="btnAuto" title="Takt läuft von selbst weiter, bis man anhält">Abspielen</button>
+      <span class="clk" title="Nummer des laufenden Takts, wie über dem Ablaufdiagramm">Takt: <b id="clkNum" class="num"></b></span>
+      <span class="clk" title="Was beim nächsten Klick auf „Schritt“ mit dem Takt passiert">Nächster Schritt: <b id="clkVal"></b></span>
+      <button id="btnReset" title="Alle Flipflops auf Q = 0, Takt auf 0 und Ablaufdiagramm leeren">Zurücksetzen</button>
+      <button id="btnNote" hidden title="Hinweis zur Schaltung wieder anzeigen">Hinweis</button>
+      <span class="spacer"></span>
+      <span id="status" class="status" role="status"></span>
+      <span class="zoom" role="group" aria-label="Zoom">
+        <button id="zoomOut" title="Verkleinern">−</button>
+        <button id="zoomIn" title="Vergrößern">+</button>
+      </span>
+    </div>
+    <div class="note" id="note" hidden>
+      <div class="note-icon" aria-hidden="true">i</div>
+      <div class="note-text" id="noteText"></div>
+      <button class="close" id="noteClose" title="Hinweis schließen" aria-label="Hinweis schließen">×</button>
+    </div>
+    <div class="canvas-area">
+      <div class="canvas" id="canvasWrap"><svg id="svg" xmlns="http://www.w3.org/2000/svg"></svg></div>
+      <div class="props" id="props" hidden></div>
+    </div>
+    <div class="hsplit" id="hsplit" role="separator" aria-orientation="horizontal" aria-label="Höhe des Ablaufdiagramms" tabindex="0"
+      title="Ziehen ändert die Höhe des Ablaufdiagramms. Doppelklick setzt zurück."></div>
+    <div class="diagram">
+      <div class="dia-head">
+        <h2>Ablaufdiagramm</h2>
+        <span class="hint" id="diaHint"></span>
+        <span class="zoom" role="group" aria-label="Zeitachse zoomen">
+          <button id="diaOut" title="Zeitachse stauchen">−</button>
+          <button id="diaIn" title="Zeitachse dehnen">+</button>
+        </span>
+        <button id="btnDiaClear">Leeren</button>
+      </div>
+      <div class="dia">
+        <div class="dia-labels" id="diaLabels"></div>
+        <div class="dia-scroll" id="diaScroll"></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+"use strict";
+
+const GRID = 10;
+const ROW = 26, MAX_COLS = 600;                    // Ablaufdiagramm: Zeilenhöhe, max. Rasterpunkte
+const TICK_WIDTHS = [4, 6, 8, 12, 16, 24, 32, 48]; // Breite eines Rasterpunkts im Ablaufdiagramm (Zoom)
+const TICK_MS = 250;                               // ms pro Rasterpunkt beim Abspielen
+// 4 Rasterpunkte pro Taktperiode: fallende Flanke, Mitte, steigende Flanke, Mitte (Zeit t = 0, 1, 2, 3)
+const perPeriod = 4;
+const phaseOf = t => ((t % perPeriod) + perPeriod) % perPeriod;
+const levelAt = t => (phaseOf(t) >= perPeriod / 2 ? 1 : 0);
+// was am Rasterpunkt t mit dem Takt passiert
+// Takt k reicht von fallender zu fallender Flanke, in der Mitte liegt die k-te steigende Flanke.
+// Laufender Takt: der, in dem der aktuelle Zeitpunkt liegt (nach „Neu“ gleich Takt 1).
+const currentPeriod = () => Math.floor(time / perPeriod) + 1;
+
+function phaseName(t) {
+  const p = phaseOf(t);
+  return p === 0 ? "Takt fällt ↓" : p === perPeriod / 2 ? "Takt steigt ↑" : levelAt(t) ? "Takt bleibt 1" : "Takt bleibt 0";
+}
+const ZOOMS = [0.6, 0.75, 0.9, 1, 1.15, 1.3, 1.5, 1.75, 2];
+const STORE_KEY = "schaltwerke.v1";
+
+// Bausteine: Titel, Gruppe in der Liste, Namensvorsatz, Beschreibung
+const TYPES = {
+  switch:  { title: "Schalter", group: "Eingänge", prefix: "E", desc: "Klick auf die Zahl wechselt zwischen 0 und 1. Klick auf den Rand oder den Namen wählt den Schalter nur aus." },
+  clock:   { title: "Takt", group: "Eingänge", prefix: "Takt", desc: "Liefert das Taktsignal. Gesteuert über „Schritt“, „Takt-Impuls“ und „Abspielen“." },
+  const:   { title: "Konstante", group: "Eingänge", desc: "Liefert immer denselben Wert, z. B. 1 für den T-Eingang." },
+  not:     { title: "NICHT", group: "Gatter", sym: "1", desc: "Kehrt das Signal um." },
+  and:     { title: "UND", group: "Gatter", sym: "&", desc: "1, wenn alle Eingänge 1 sind." },
+  or:      { title: "ODER", group: "Gatter", sym: "≥1", desc: "1, wenn mindestens ein Eingang 1 ist." },
+  nand:    { title: "NAND", group: "Gatter", sym: "&", desc: "0, wenn alle Eingänge 1 sind, sonst 1." },
+  nor:     { title: "NOR", group: "Gatter", sym: "≥1", desc: "1, wenn alle Eingänge 0 sind, sonst 0." },
+  xor:     { title: "XOR", group: "Gatter", sym: "=1", desc: "1, wenn eine ungerade Anzahl Eingänge 1 ist." },
+  rs:      { title: "RS-Flipflop", group: "Flipflops", prefix: "F", desc: "Asynchron, ohne Takt: S = 1 setzt (Q = 1), R = 1 setzt zurück (Q = 0). S = R = 1 ist verboten." },
+  rsc:     { title: "RS getaktet", group: "Flipflops", prefix: "F", desc: "Wie das RS-Flipflop, übernimmt S und R aber erst bei der Taktflanke." },
+  d:       { title: "D-Flipflop", group: "Flipflops", prefix: "F", desc: "Q übernimmt bei der Taktflanke den Wert von D. Oben S und unten R setzen bzw. löschen sofort, ohne Takt." },
+  jk:      { title: "JK-Flipflop", group: "Flipflops", prefix: "F", desc: "Bei der Taktflanke: J = 1 setzt, K = 1 setzt zurück, J = K = 1 kippt Q. Oben S und unten R wirken sofort." },
+  t:       { title: "T-Flipflop", group: "Flipflops", prefix: "F", desc: "Bei der Taktflanke: T = 1 kippt Q, T = 0 lässt Q unverändert. Oben S und unten R wirken sofort." },
+  lamp:    { title: "Lampe", group: "Ausgänge", prefix: "L", desc: "Leuchtet bei 1." },
+  display: { title: "Zahlenanzeige", group: "Ausgänge", prefix: "Z", desc: "Zeigt 4 Bits als Dualzahl 0 bis 15. Oben liegt das Bit mit der Wertigkeit 2⁰." },
+};
+const GATES = new Set(["and", "or", "nand", "nor", "xor"]);
+const CLOCKED = new Set(["rsc", "d", "jk", "t"]);
+const FLIPFLOPS = new Set(["rs", "rsc", "d", "jk", "t"]);
+const WATCHABLE = new Set(["switch", "clock", "rs", "rsc", "d", "jk", "t", "lamp", "display"]);
+const DEFAULT_PROPS = {
+  switch: { value: 0, watch: true }, clock: { watch: true }, const: { value: 1 },
+  not: {}, and: { n: 2 }, or: { n: 2 }, nand: { n: 2 }, nor: { n: 2 }, xor: { n: 2 },
+  rs: { watch: false, init: 0 }, rsc: { neg: false, watch: false, init: 0 }, d: { neg: false, watch: false, init: 0 },
+  jk: { neg: false, watch: false, init: 0 }, t: { neg: false, watch: false, init: 0 },
+  lamp: { watch: true }, display: { watch: true },
+};
+const BITS = ["2⁰", "2¹", "2²", "2³"];
+
+const $ = id => document.getElementById(id);
+const snap = v => Math.round(v / GRID) * GRID;
+const esc = s => String(s).replace(/[&<>"]/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[ch]);
+const nm = c => c.name || TYPES[c.type].title;
+
+/////////////////
+// Geometrie   //
+/////////////////
+// Anschlüsse relativ zur linken oberen Ecke des Bausteins (Rastermaß 10)
+const CLK = p => ({ id: "C", x: -10, y: 40, clk: true, neg: !!p.neg });
+const ASYNC = [{ id: "AS", x: 30, y: -10, label: "S" }, { id: "AR", x: 30, y: 90, label: "R" }];
+const QOUT = (w, y1, y2) => [{ id: "Q", x: w + 10, y: y1, label: "Q" }, { id: "Qn", x: w + 10, y: y2, label: "Q", bar: true }];
+
+function geo(c) {
+  const p = c.props;
+  switch (c.type) {
+    case "switch": case "clock": return { w: 40, h: 40, ins: [], outs: [{ id: "Q", x: 50, y: 20 }] };
+    case "const": return { w: 30, h: 20, ins: [], outs: [{ id: "Q", x: 40, y: 10 }] };
+    case "lamp": return { w: 30, h: 40, ins: [{ id: "A", x: -10, y: 20 }], outs: [] };
+    case "display": return { w: 60, h: 80, ins: [0, 1, 2, 3].map(i => ({ id: "B" + i, x: -10, y: 10 + 20 * i, label: BITS[i] })), outs: [] };
+    case "not": return { w: 40, h: 40, ins: [{ id: "I0", x: -10, y: 20 }], outs: [{ id: "Y", x: 50, y: 20, neg: true }] };
+    case "and": case "or": case "nand": case "nor": case "xor": {
+      const h = p.n * 20;
+      return {
+        w: 40, h, ins: Array.from({ length: p.n }, (_, i) => ({ id: "I" + i, x: -10, y: 10 + 20 * i })),
+        outs: [{ id: "Y", x: 50, y: h / 2, neg: c.type === "nand" || c.type === "nor" }],
+      };
+    }
+    case "rs": return { w: 60, h: 80, ins: [{ id: "S", x: -10, y: 20, label: "S" }, { id: "R", x: -10, y: 60, label: "R" }], outs: QOUT(60, 20, 60) };
+    case "rsc": return { w: 60, h: 80, ins: [{ id: "S", x: -10, y: 20, label: "S" }, CLK(p), { id: "R", x: -10, y: 60, label: "R" }], outs: QOUT(60, 20, 60) };
+    case "d": return { w: 60, h: 80, ins: [{ id: "D", x: -10, y: 20, label: "D" }, CLK(p), ...ASYNC], outs: QOUT(60, 20, 60) };
+    case "t": return { w: 60, h: 80, ins: [{ id: "T", x: -10, y: 20, label: "T" }, CLK(p), ...ASYNC], outs: QOUT(60, 20, 60) };
+    case "jk": return { w: 60, h: 80, ins: [{ id: "J", x: -10, y: 20, label: "J" }, CLK(p), { id: "K", x: -10, y: 60, label: "K" }, ...ASYNC], outs: QOUT(60, 20, 60) };
+  }
+}
+
+function sideOf(g, p) {
+  if (p.x < 0) return "left";
+  if (p.x > g.w) return "right";
+  return p.y < 0 ? "top" : "bottom";
+}
+
+function pinPos(cid, pid) {
+  const c = byId(cid);
+  if (!c) return null;
+  const g = geo(c), p = [...g.ins, ...g.outs].find(q => q.id === pid);
+  return p ? { x: c.x + p.x, y: c.y + p.y, side: sideOf(g, p) } : null;
+}
+
+///////////////////
+// Schaltung     //
+///////////////////
+let comps = [], wires = [], nextId = 1;
+let val = new Map(), wireTo = new Map(), clockLevel = 0, warnSet = new Set();
+let sel = null, drag = null, zoom = 1;
+let columns = [];
+let undoStack = [];
+let autoTimer = null, pulseTimer = null;
+let time = 0, tickW = 12;
+let note = "", noteHidden = false;  // Hinweis zur Schaltung (z. B. Bedienung eines Beispiels)  // aktueller Rasterpunkt, Breite im Ablaufdiagramm
+
+const byId = id => comps.find(c => c.id === id);
+
+function defaultName(type) {
+  const T = TYPES[type];
+  if (!T.prefix) return "";
+  if (type === "clock") return "Takt";
+  const used = new Set(comps.map(c => c.name));
+  for (let i = 0; ; i++) if (!used.has(T.prefix + i)) return T.prefix + i;
+}
+
+function makeComp(type, x, y, name, props = {}) {
+  return {
+    id: "c" + nextId++, type, x, y, name: name ?? defaultName(type),
+    props: { ...structuredClone(DEFAULT_PROPS[type]), ...props }, state: { q: 0 },
+  };
+}
+
+const snapshot = () => JSON.stringify({
+  format: "schaltwerke", version: 1, note,
+  components: comps.map(({ id, type, x, y, name, props, state }) => ({ id, type, x, y, name, props, q: state.q })),
+  wires,
+});
+
+function restore(json) {
+  const d = typeof json === "string" ? JSON.parse(json) : json;
+  if (!d || !Array.isArray(d.components) || !Array.isArray(d.wires)) throw new Error("kein gültiges Format");
+  note = typeof d.note === "string" ? d.note : "";
+  const cs = d.components.filter(c => TYPES[c.type]).map(c => ({
+    id: String(c.id), type: c.type, x: snap(+c.x || 0), y: snap(+c.y || 0), name: String(c.name ?? ""),
+    props: { ...structuredClone(DEFAULT_PROPS[c.type]), ...c.props }, state: { q: c.q ? 1 : 0 },
+  }));
+  comps = cs;
+  wires = d.wires.filter(w => w && w.from && w.to && pinPos(w.from.c, w.from.p) && pinPos(w.to.c, w.to.p))
+    .map(w => ({ from: { c: w.from.c, p: w.from.p }, to: { c: w.to.c, p: w.to.p }, ...(Number.isFinite(w.mx) ? { mx: w.mx } : {}), ...(Number.isFinite(w.my) ? { my: w.my } : {}) }));
+  nextId = 1 + Math.max(0, ...comps.map(c => parseInt(c.id.replace(/\D/g, ""), 10) || 0));
+}
+
+function pushUndo(state = snapshot()) {
+  undoStack.push(state);
+  if (undoStack.length > 100) undoStack.shift();
+}
+
+function undo() {
+  const s = undoStack.pop();
+  if (!s) return;
+  restore(s);
+  sel = null;
+  changed();
+}
+
+// nach jeder Änderung am Aufbau: neu berechnen (ohne Taktflanken auszulösen), zeichnen, speichern
+function changed() {
+  simulate(false);
+  renderNote();
+  render();
+  renderProps();
+  renderDiagram();
+  save();
+}
+
+/////////////////
+// Simulation  //
+/////////////////
+const warn = msg => warnSet.add(msg);
+
+function inVal(c, pid) {
+  const w = wireTo.get(c.id + "|" + pid);
+  return w ? (val.get(w.from.c + "|" + w.from.p) || 0) : 0;
+}
+
+// Ausgänge eines Bausteins aus seinen Eingängen (und dem Speicherzustand der Flipflops)
+function evalComp(c) {
+  const I = id => inVal(c, id);
+  switch (c.type) {
+    case "switch": case "const": return { Q: c.props.value ? 1 : 0 };
+    case "clock": return { Q: clockLevel };
+    case "not": return { Y: I("I0") ? 0 : 1 };
+    case "and": case "or": case "nand": case "nor": case "xor": {
+      const ins = Array.from({ length: c.props.n }, (_, i) => I("I" + i));
+      let y = c.type === "xor" ? ins.reduce((a, b) => a ^ b, 0)
+        : c.type === "and" || c.type === "nand" ? +ins.every(v => v)
+        : +ins.some(v => v);
+      if (c.type === "nand" || c.type === "nor") y = 1 - y;
+      return { Y: y };
+    }
+    case "rs": {
+      const s = I("S"), r = I("R");
+      if (s && r) { warn(`${nm(c)}: S = R = 1 ist verboten.`); return { Q: 0, Qn: 0 }; }
+      if (s) c.state.q = 1; else if (r) c.state.q = 0;
+      return { Q: c.state.q, Qn: 1 - c.state.q };
+    }
+    case "d": case "t": case "jk": {
+      // S und R oben/unten wirken sofort, unabhängig vom Takt
+      const s = I("AS"), r = I("AR");
+      if (s && r) warn(`${nm(c)}: S = R = 1 ist verboten.`);
+      if (r) c.state.q = 0; else if (s) c.state.q = 1;
+      return { Q: c.state.q, Qn: 1 - c.state.q };
+    }
+    case "rsc": return { Q: c.state.q, Qn: 1 - c.state.q };
+    default: return {};
+  }
+}
+
+// rechnet alle Gatter durch, bis sich nichts mehr ändert
+function settle() {
+  for (let it = 0; it < 200; it++) {
+    let any = false;
+    for (const c of comps) {
+      const out = evalComp(c);
+      for (const k in out) {
+        const key = c.id + "|" + k;
+        if (val.get(key) !== out[k]) { val.set(key, out[k]); any = true; }
+      }
+    }
+    if (!any) return;
+  }
+  warn("Die Schaltung kommt nicht zur Ruhe (Rückkopplung ohne Flipflop).");
+}
+
+const clkOf = c => inVal(c, "C") ^ (c.props.neg ? 1 : 0);
+
+// neuer Zustand bei der aktiven Taktflanke
+function nextState(c) {
+  const q = c.state.q, I = id => inVal(c, id);
+  switch (c.type) {
+    case "d": return I("D");
+    case "t": return I("T") ? 1 - q : q;
+    case "jk": { const j = I("J"), k = I("K"); return j && k ? 1 - q : j ? 1 : k ? 0 : q; }
+    case "rsc": {
+      const s = I("S"), r = I("R");
+      if (s && r) { warn(`${nm(c)}: S = R = 1 ist verboten.`); return q; }
+      return s ? 1 : r ? 0 : q;
+    }
+  }
+  return q;
+}
+
+// edges = false: nur neu berechnen (z. B. nach dem Verbinden), ohne dass Flipflops schalten
+function simulate(edges = true) {
+  warnSet = new Set();
+  wireTo = new Map(wires.map(w => [w.to.c + "|" + w.to.p, w]));
+  settle();
+  for (let round = 0; round < 100; round++) {
+    const fire = [];
+    for (const c of comps) {
+      if (!CLOCKED.has(c.type)) continue;
+      const clk = clkOf(c), prev = c.state.clk;
+      c.state.clk = clk;
+      if (edges && prev === 0 && clk === 1) fire.push(c);
+    }
+    if (!fire.length) break;
+    // alle Flipflops mit Flanke lesen ihre Eingänge gleichzeitig, erst danach schalten sie
+    const next = fire.map(nextState);
+    fire.forEach((c, i) => { c.state.q = next[i]; });
+    settle();
+  }
+  renderStatus();
+}
+
+// Die Zeit läuft in Rasterpunkten (4 pro Taktperiode). Ein Schritt setzt den Takt auf den Pegel
+// des neuen Rasterpunkts; Flipflops mit Flanke lesen dabei die Eingänge, die bisher anliegen.
+function stepTime() {
+  // der Abschnitt von time bis time + 1 ist damit abgeschlossen und wird gezeichnet
+  columns.push({ s: [snapshotSignals()] });
+  if (columns.length > MAX_COLS) columns.shift();
+  time++;
+  clockLevel = levelAt(time);
+  simulate(true);
+  renderDiagram();
+  render();
+  save();
+}
+
+// Schalter oder Konstante geändert: gilt genau ab dem aktuellen Rasterpunkt
+function event() {
+  simulate(true);
+  record();
+  render();
+  save();
+}
+
+// ganze Taktperiode, sichtbar Schritt für Schritt
+function pulse() {
+  if (autoTimer || pulseTimer) return;
+  let left = perPeriod;
+  const next = () => {
+    stepTime();
+    pulseTimer = --left > 0 ? setTimeout(next, 360 / perPeriod) : null;
+    updateClockUI();
+  };
+  next();
+}
+
+function startAuto() {
+  stopAuto();
+  autoTimer = setInterval(stepTime, TICK_MS);
+  updateClockUI();
+}
+
+function stopAuto() {
+  if (autoTimer) clearInterval(autoTimer);
+  autoTimer = null;
+  updateClockUI();
+}
+
+function resetCircuit() {
+  stopAuto();
+  if (pulseTimer) { clearTimeout(pulseTimer); pulseTimer = null; }
+  for (const c of comps) { c.state.q = c.props.init ? 1 : 0; delete c.state.clk; }
+  startTimeline();
+  render();
+  save();
+}
+
+// Zeit auf 0 (fallende Flanke, Takt 0) und Ablaufdiagramm neu beginnen
+function startTimeline() {
+  time = 0;
+  clockLevel = 0;
+  val = new Map();
+  simulate(false);
+  // ohne Takt zeigt die erste Spalte den Anfangszustand; mit Takt beginnt das Diagramm an der blauen Linie
+  columns = comps.some(c => c.type === "clock") ? [] : [{ s: [snapshotSignals()] }];
+  renderDiagram();
+}
+
+///////////////////////
+// Ablaufdiagramm    //
+///////////////////////
+// Das Diagramm zeigt nur Vergangenes: jede Spalte ist ein abgeschlossener Abschnitt von einem
+// Rasterpunkt zum nächsten, die blaue Linie ist der aktuelle Zeitpunkt. Ein Schalter gilt ab der blauen
+// Linie (steht sie auf der steigenden Flanke, wechselt er also gleichzeitig mit ihr) und wird mit dem
+// nächsten Schritt gezeichnet. Mehrmaliges Umschalten ergibt keinen Puls, es zählt der letzte Stand.
+// Rechts der blauen Linie zeigt ein kurzer blasser Ansatz den eingestellten Pegel.
+const ORDER = ["clock", "switch", "rs", "rsc", "d", "jk", "t", "lamp", "display"];
+
+function watched() {
+  return comps.filter(c => WATCHABLE.has(c.type) && c.props.watch)
+    .sort((a, b) => ORDER.indexOf(a.type) - ORDER.indexOf(b.type) || comps.indexOf(a) - comps.indexOf(b));
+}
+
+function sample(c) {
+  switch (c.type) {
+    case "switch": return c.props.value ? 1 : 0;
+    case "clock": return clockLevel;
+    case "lamp": return inVal(c, "A");
+    case "display": return [0, 1, 2, 3].reduce((s, i) => s + (inVal(c, "B" + i) << i), 0);
+    default: return val.get(c.id + "|Q") || 0;
+  }
+}
+
+function snapshotSignals() {
+  const now = {};
+  for (const c of comps) if (WATCHABLE.has(c.type) && c.props.watch) now[c.id] = sample(c);
+  return now;
+}
+
+// Schalteränderung: mit Takt gilt sie ab dem aktuellen Zeitpunkt und erscheint beim nächsten Schritt;
+// ohne Takt-Baustein rückt jede Änderung eine Spalte weiter
+function record() {
+  if (!comps.some(c => c.type === "clock")) {
+    columns.push({ s: [snapshotSignals()] });
+    if (columns.length > MAX_COLS) columns.shift();
+  }
+  renderDiagram();
+}
+
+// Verlauf eines Signals als Abschnitte {x0, x1, v}
+function segments(id) {
+  const out = [];
+  columns.forEach((col, i) => col.s.forEach((smp, j) => {
+    const k = col.s.length;
+    out.push({ x0: (i + j / k) * tickW, x1: (i + (j + 1) / k) * tickW, v: smp[id] });
+  }));
+  return out;
+}
+
+const diaLabel = c => FLIPFLOPS.has(c.type) ? `Q von ${nm(c)}` : nm(c);
+
+function renderDiagram() {
+  const list = watched(), scroller = $("diaScroll");
+  const clk = comps.find(c => c.type === "clock");
+  const AXIS = clk ? 18 : 0;  // Zeile mit den Taktnummern über den Signalen
+  $("diaLabels").innerHTML = `<div style="height:${AXIS}px"></div>` + (list.length
+    ? list.map(c => `<div class="dl" style="height:${ROW}px" title="${esc(diaLabel(c))}">${overline(esc(diaLabel(c)), "span")}</div>`).join("")
+    : `<div class="dl muted" style="font-weight:400">keine Signale</div>`);
+  const n = columns.length, H = Math.max(1, list.length) * ROW, HT = H + AXIS;
+  const W = Math.max(n * tickW + 30, scroller.clientWidth - 2);
+  const atEnd = scroller.scrollLeft + scroller.clientWidth >= scroller.scrollWidth - 30;
+  let s = `<svg width="${W}" height="${HT}" xmlns="http://www.w3.org/2000/svg">`;
+  // Raster: Taktgrenzen (fallende Flanken) durchgezogen, Taktmitte (steigende Flanke) gestrichelt,
+  // Zwischenpunkte gepunktet. Nur an diesen Linien kann ein Schalter wechseln; rechts der blauen
+  // Linie blasser (Zukunft). Die Taktnummer steht über der Taktmitte; die Linien beginnen erst
+  // unterhalb der Nummernzeile.
+  const period = perPeriod * tickW, every = period >= 22 ? 1 : period >= 12 ? 2 : 5, curK = currentPeriod();
+  if (clk) for (let i = 1; i * tickW < W; i++) {
+    const T = time - n + i, p = phaseOf(T), x = i * tickW;
+    const cls = p === perPeriod / 2 ? "tline-mid" : p === 0 ? "tline-bound" : "edge-mid";
+    s += `<line class="${cls}${i > n ? " future" : ""}" x1="${x}" x2="${x}" y1="${AXIS}" y2="${HT}"/>`;
+    const k = (T - perPeriod / 2) / perPeriod + 1;
+    if (p === perPeriod / 2 && k === curK) {
+      // laufender Takt hervorgehoben
+      const bw = Math.max(20, String(k).length * 8 + 12);
+      s += `<rect class="tcur" x="${x - bw / 2}" y="2" width="${bw}" height="15" rx="7.5"/>` +
+        `<text class="tnum cur" x="${x}" y="13.5" text-anchor="middle">${k}</text>`;
+    } else if (p === perPeriod / 2 && k >= 1 && k % every === 0)
+      s += `<text class="tnum${i >= n ? " future" : ""}" x="${x}" y="13" text-anchor="middle">${k}</text>`;
+  }
+  else for (let i = 1; i < n; i++) s += `<line class="edge-mid" x1="${i * tickW}" x2="${i * tickW}" y1="0" y2="${H}"/>`;
+  s += `<g transform="translate(0,${AXIS})">`;
+  list.forEach((_, r) => { s += `<line class="rowline" x1="0" x2="${W}" y1="${(r + 1) * ROW - 0.5}" y2="${(r + 1) * ROW - 0.5}"/>`; });
+  // Hinweis passend dazu, ob es einen Takt gibt
+  $("diaHint").textContent = clk
+    ? "Schalter wechseln nur an den senkrechten Rasterlinien. Die blaue Linie ist der aktuelle Zeitpunkt: Schalter gelten ab hier, „Schritt“ zeichnet weiter."
+    : "Ohne Takt: Jede Änderung an einem Schalter ergibt eine neue Spalte.";
+  list.forEach((c, r) => {
+    const hi = r * ROW + 5, lo = r * ROW + ROW - 7, mid = (hi + lo) / 2;
+    const segs = segments(c.id);
+    if (c.type === "display") {
+      for (let i = 0; i < segs.length;) {
+        const v = segs[i].v;
+        let j = i + 1;
+        while (j < segs.length && segs[j].v === v) j++;
+        if (v != null) {
+          const x0 = segs[i].x0, x1 = segs[j - 1].x1;
+          s += `<path class="bus" d="M${x0 + 3},${hi}H${x1 - 3}L${x1},${mid}L${x1 - 3},${lo}H${x0 + 3}L${x0},${mid}Z"/>`;
+          if (x1 - x0 >= 14) s += `<text class="bus-txt" x="${(x0 + x1) / 2}" y="${mid + 4}" text-anchor="middle">${v}</text>`;
+        }
+        i = j;
+      }
+      return;
+    }
+    let d = "", fill = "", prev = null;
+    for (const { x0, x1, v } of segs) {
+      if (v == null) { prev = null; continue; }
+      const y = v ? hi : lo;
+      if (prev === null) d += `M${x0},${y}`;
+      else if (prev !== v) d += `V${y}`;
+      d += `H${x1}`;
+      if (v) fill += `M${x0},${hi}H${x1}V${lo}H${x0}Z`;
+      prev = v;
+    }
+    if (fill) s += `<path class="sig-fill" d="${fill}"/>`;
+    if (d) s += `<path class="sig" d="${d}"/>`;
+    // blasser Ansatz rechts der blauen Linie: der jetzt eingestellte Pegel
+    if (clk) {
+      const x = n * tickW, y = sample(c) ? hi : lo, last = segs.at(-1);
+      const from = last && last.v != null ? `M${x},${last.v ? hi : lo}V${y}` : `M${x},${y}`;
+      s += `<path class="sig pending" d="${from}h${Math.min(14, Math.max(6, tickW * 0.6))}"/>`;
+    }
+  });
+  s += `</g>`;
+  // blaue Linie: der aktuelle Zeitpunkt
+  if (clk) s += `<line class="now" x1="${Math.max(1, n * tickW)}" x2="${Math.max(1, n * tickW)}" y1="${AXIS}" y2="${HT}"/>`;
+  scroller.innerHTML = s + "</svg>";
+  if (atEnd) scroller.scrollLeft = scroller.scrollWidth;
+}
+
+/////////////////
+// Zeichnen    //
+/////////////////
+const svg = $("svg"), wrap = $("canvasWrap");
+
+function outVal(c, pid) { return val.get(c.id + "|" + pid) || 0; }
+
+function stubSVG(c, g, p, io) {
+  const X = c.x, Y = c.y, px = X + p.x, py = Y + p.y, side = sideOf(g, p);
+  const v = io === "in" ? inVal(c, p.id) : outVal(c, p.id);
+  let ex = px, ey = py;
+  if (side === "left") ex = X - (p.neg ? 10 : 0);
+  else if (side === "right") ex = X + g.w + (p.neg ? 10 : 0);
+  else if (side === "top") ey = Y;
+  else ey = Y + g.h;
+  let s = `<line class="stub${v ? " one" : ""}" x1="${px}" y1="${py}" x2="${ex}" y2="${ey}"/>`;
+  // Negation: der einzige hohle Kreis in der Zeichnung
+  if (p.neg) s += `<circle class="bubble" cx="${side === "left" ? X - 5 : X + g.w + 5}" cy="${py}" r="5"/>`;
+  return s;
+}
+
+// Anschluss: offene Anschlüsse als kleiner gefüllter Punkt, verbundene ohne Punkt
+function pinSVG(c, p, io) {
+  const px = c.x + p.x, py = c.y + p.y;
+  const connected = io === "in" ? wireTo.has(c.id + "|" + p.id) : wires.some(w => w.from.c === c.id && w.from.p === p.id);
+  const dot = connected ? "" : `<circle class="pin-dot" cx="${px}" cy="${py}" r="2.5"/>`;
+  // Takteingang: Klickfläche reicht bis über das Dreieck; Klick schaltet den Knubbel
+  const hit = p.clk
+    ? `<rect class="pin-hit" x="${px - 9}" y="${py - 9}" width="29" height="18" rx="6"><title>Takteingang. Klick: Knubbel an/aus (mit Knubbel schaltet das Flipflop bei fallender Flanke). Ziehen: verbinden.</title></rect>`
+    : `<circle class="pin-hit" cx="${px}" cy="${py}" r="9"/>`;
+  return `<g class="pin" data-pin="${c.id}|${p.id}|${io}">${dot}${hit}</g>`;
+}
+
+// Überstrich (z. B. Q̄) selbst zeichnen: Q gefolgt vom kombinierenden Überstrich U+0304
+const overline = (s, tag) => s.replace(/(.)\u0304/g, `<${tag} style="text-decoration:overline">$1</${tag}>`);
+const text = (x, y, t, cls = "", anchor = "middle") =>
+  `<text class="${cls}" x="${x}" y="${y}" text-anchor="${anchor}">${overline(esc(t), "tspan")}</text>`;
+
+// interactive = false: nur die Form (für die Bausteinliste)
+function compSVG(c, interactive = true) {
+  const g = geo(c), X = c.x, Y = c.y, w = g.w, h = g.h, T = TYPES[c.type];
+  let s = "";
+  const body = (cls = "") => `<rect class="body${cls}" x="${X}" y="${Y}" width="${w}" height="${h}" rx="3"/>`;
+  switch (c.type) {
+    case "switch":
+      // innere Taste: nur ein Klick darauf schaltet um; Rand und Name wählen nur aus
+      s += body() + `<g class="toggle${c.props.value ? " on" : ""}" data-toggle="1"><rect x="${X + 6}" y="${Y + 6}" width="${w - 12}" height="${h - 12}" rx="3"/>` +
+        text(X + w / 2, Y + 27, c.props.value ? "1" : "0", "val") + `</g>`;
+      if (c.name) s += text(X + w / 2, Y - 7, c.name, "name");
+      break;
+    case "clock":
+      s += body() + `<path class="wave${clockLevel && interactive ? " one" : ""}" d="M${X + 6},${Y + 28}h6v-16h8v16h8v-16h6"/>`;
+      if (c.name) s += text(X + w / 2, Y - 7, c.name, "name");
+      break;
+    case "const":
+      s += body() + text(X + w / 2, Y + 15, String(c.props.value), "lbl");
+      break;
+    case "lamp": {
+      const on = interactive && inVal(c, "A");
+      s += `<circle class="lampc${on ? " lit" : ""}" cx="${X + 15}" cy="${Y + 20}" r="13"/>`;
+      if (c.name) s += text(X + 34, Y + 25, c.name, "name", "start");
+      break;
+    }
+    case "display": {
+      s += body();
+      g.ins.forEach(p => { s += text(X + 5, Y + p.y + 4, p.label, "small", "start"); });
+      s += text(X + w - 8, Y + h / 2 + 9, interactive ? String(sample(c)) : "0", "big", "end");
+      if (c.name) s += text(X, Y - 7, c.name, "name", "start");
+      break;
+    }
+    default:
+      if (GATES.has(c.type) || c.type === "not") {
+        s += body() + text(X + w / 2, Y + 18, T.sym, "sym");
+      } else {
+        // Flipflop: Schaltzeichen wie im Skript
+        s += body() + `<line class="dash" x1="${X + w / 2}" y1="${Y + h / 2}" x2="${X + w}" y2="${Y + h / 2}"/>`;
+        for (const p of g.ins) {
+          if (p.clk) s += `<path class="tri" d="M${X},${Y + p.y - 6}L${X + 8},${Y + p.y}L${X},${Y + p.y + 6}"/>`;
+          else if (sideOf(g, p) === "left") s += text(X + 5, Y + p.y + 4, p.label, "lbl", "start");
+          else s += text(X + p.x + 5, sideOf(g, p) === "top" ? Y - 3 : Y + h + 11, p.label, "small", "start");
+        }
+        for (const p of g.outs) {
+          s += text(X + w - 5, Y + p.y + 4, p.label, "lbl", "end");
+          if (p.bar) s += `<line class="bar" x1="${X + w - 13}" x2="${X + w - 5}" y1="${Y + p.y - 7}" y2="${Y + p.y - 7}"/>`;
+        }
+        if (c.name) s += text(X, Y - 6, c.name, "name", "start");
+      }
+  }
+  for (const p of g.ins) s += stubSVG(c, g, p, "in");
+  for (const p of g.outs) s += stubSVG(c, g, p, "out");
+  if (!interactive) return s;
+  for (const p of g.ins) s += pinSVG(c, p, "in");
+  for (const p of g.outs) s += pinSVG(c, p, "out");
+  const selected = sel && sel.c === c;
+  const box = selected ? `<rect class="selbox" x="${X - 16}" y="${Y - 22}" width="${w + 32}" height="${h + 36}" rx="6"/>` : "";
+  return `<g class="comp t-${c.type}" data-comp="${c.id}">${box}${s}</g>`;
+}
+
+// rechtwinklige Leitung von Ausgang a zu Eingang b
+function wirePath(w) {
+  const a = pinPos(w.from.c, w.from.p), b = pinPos(w.to.c, w.to.p);
+  if (!a || !b) return "";
+  if (b.side === "top" || b.side === "bottom") return `M${a.x},${a.y}H${b.x}V${b.y}`;
+  if (b.x >= a.x + 20) {
+    const mx = w.mx != null && w.mx > a.x && w.mx < b.x ? w.mx : snap((a.x + b.x) / 2);
+    return `M${a.x},${a.y}H${mx}V${b.y}H${b.x}`;
+  }
+  // Rückführung nach links: waagrechter Abschnitt auf Höhe my (falls angegeben), sonst unterhalb
+  const ym = w.my != null ? w.my : Math.abs(a.y - b.y) < 30 ? Math.max(a.y, b.y) + 50 : snap((a.y + b.y) / 2);
+  return `M${a.x},${a.y}H${a.x + 10}V${ym}H${b.x - 10}V${b.y}H${b.x}`;
+}
+
+function render() {
+  let maxX = 0, maxY = 0;
+  for (const c of comps) { const g = geo(c); maxX = Math.max(maxX, c.x + g.w); maxY = Math.max(maxY, c.y + g.h); }
+  const W = Math.max(1400, maxX + 400), H = Math.max(800, maxY + 300);
+  let s = `<defs><pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse"><circle class="gdot" cx="10" cy="10" r="1"/></pattern></defs>` +
+    `<rect width="${W}" height="${H}" fill="url(#grid)"/>`;
+  wires.forEach((w, i) => {
+    const d = wirePath(w), v = val.get(w.from.c + "|" + w.from.p);
+    if (sel && sel.w === w) s += `<path class="wire-glow" d="${d}"/>`;
+    s += `<path class="wire${v ? " one" : ""}" d="${d}"/><path class="wire-hit" data-wire="${i}" d="${d}"/>`;
+  });
+  for (const c of comps) s += compSVG(c);
+  if (drag && drag.kind === "wire") {
+    const a = pinPos(drag.from.c, drag.from.p);
+    s += `<path class="wire-temp" d="M${a.x},${a.y}L${drag.x},${drag.y}"/>`;
+  }
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svg.setAttribute("width", W * zoom);
+  svg.setAttribute("height", H * zoom);
+  svg.innerHTML = s;
+  updateClockUI();
+}
+
+function renderStatus() {
+  $("status").textContent = warnSet.size ? "⚠ " + [...warnSet].join(" ") : "";
+}
+
+function updateClockUI() {
+  const b = $("clkVal");
+  b.textContent = phaseName(time + 1);
+  b.className = levelAt(time + 1) ? "one" : "";
+  b.parentElement.hidden = !comps.some(c => c.type === "clock");
+  const k = currentPeriod();
+  $("clkNum").textContent = k;
+  $("clkNum").parentElement.hidden = b.parentElement.hidden;
+  $("btnAuto").textContent = autoTimer ? "Anhalten" : "Abspielen";
+  $("btnPulse").disabled = $("btnStep").disabled = !!autoTimer || !!pulseTimer;
+}
+
+////////////////////////
+// Eigenschaften      //
+////////////////////////
+// Eigenschaften erscheinen als Fenster oben rechts auf der Fläche, solange etwas ausgewählt ist
+function renderProps() {
+  const el = $("props");
+  el.hidden = !sel;
+  if (!sel) return;
+  const close = `<button class="close" id="pClose" title="Schließen (Esc)" aria-label="Schließen">×</button>`;
+  if (sel.w) {
+    el.innerHTML = `${close}<h3>Verbindung</h3><p class="muted">Ziehen verschiebt den senkrechten Abschnitt.</p><button id="pDel" class="danger">Verbindung löschen</button>`;
+    $("pDel").onclick = deleteSelection;
+    $("pClose").onclick = () => select(null);
+    return;
+  }
+  const c = sel.c, T = TYPES[c.type];
+  let h = `${close}<h3>${esc(T.title)}</h3><p class="muted">${esc(T.desc)}</p>`;
+  if (T.prefix) h += `<label class="field">Name <input type="text" id="pName" maxlength="14" value="${esc(c.name)}"></label>`;
+  if (GATES.has(c.type)) h += `<label class="field">Eingänge <select id="pN">${[2, 3, 4].map(n => `<option${n === c.props.n ? " selected" : ""}>${n}</option>`).join("")}</select></label>`;
+  if (c.type === "const") h += `<label class="field">Wert <select id="pVal"><option value="1"${c.props.value ? " selected" : ""}>1</option><option value="0"${c.props.value ? "" : " selected"}>0</option></select></label>`;
+  if (FLIPFLOPS.has(c.type)) h += `<label class="check"><input type="checkbox" id="pInit"${c.props.init ? " checked" : ""}> <span>Startwert Q = 1 (nach Laden und Zurücksetzen)</span></label>`;
+  if (CLOCKED.has(c.type)) h += `<label class="check"><input type="checkbox" id="pNeg"${c.props.neg ? " checked" : ""}> <span>Knubbel am Takteingang: schaltet bei <b>fallender</b> Flanke (auch per Klick auf das Dreieck)</span></label>`;
+  if (WATCHABLE.has(c.type)) h += `<label class="check"><input type="checkbox" id="pWatch"${c.props.watch ? " checked" : ""}> <span>im Ablaufdiagramm zeigen</span></label>`;
+  h += `<button id="pDel" class="danger">Baustein löschen</button>`;
+  el.innerHTML = h;
+
+  const name = $("pName");
+  if (name) {
+    name.addEventListener("focus", () => pushUndo(), { once: true });
+    name.addEventListener("input", () => { c.name = name.value.trim(); render(); renderDiagram(); save(); });
+  }
+  const n = $("pN");
+  if (n) n.onchange = () => {
+    pushUndo();
+    c.props.n = +n.value;
+    wires = wires.filter(w => !(w.to.c === c.id && /^I\d$/.test(w.to.p) && +w.to.p.slice(1) >= c.props.n));
+    changed();
+  };
+  const v = $("pVal");
+  if (v) v.onchange = () => { pushUndo(); c.props.value = +v.value; event(); };
+  const init = $("pInit");
+  if (init) init.onchange = () => { pushUndo(); c.props.init = init.checked ? 1 : 0; save(); };
+  const neg = $("pNeg");
+  if (neg) neg.onchange = () => { pushUndo(); c.props.neg = neg.checked; changed(); };
+  const wt = $("pWatch");
+  if (wt) wt.onchange = () => { c.props.watch = wt.checked; renderDiagram(); save(); };
+  $("pDel").onclick = deleteSelection;
+  $("pClose").onclick = () => select(null);
+}
+
+function select(s) {
+  sel = s;
+  render();
+  renderProps();
+}
+
+function deleteSelection() {
+  if (!sel) return;
+  pushUndo();
+  if (sel.w) wires = wires.filter(w => w !== sel.w);
+  else {
+    const id = sel.c.id;
+    comps = comps.filter(c => c !== sel.c);
+    wires = wires.filter(w => w.from.c !== id && w.to.c !== id);
+  }
+  sel = null;
+  changed();
+}
+
+function connect(a, b) {
+  if (a.io === b.io || (a.c === b.c && a.p === b.p)) return;
+  const out = a.io === "out" ? a : b, inp = a.io === "out" ? b : a;
+  pushUndo();
+  // ein Eingang hat genau eine Quelle: alte Verbindung ersetzen
+  wires = wires.filter(w => !(w.to.c === inp.c && w.to.p === inp.p));
+  wires.push({ from: { c: out.c, p: out.p }, to: { c: inp.c, p: inp.p } });
+  changed();
+}
+
+function addComp(type, x, y) {
+  pushUndo();
+  const c = makeComp(type, 0, 0);
+  const g = geo(c);
+  c.x = snap(x - g.w / 2);
+  c.y = snap(y - g.h / 2);
+  comps.push(c);
+  sel = { c };
+  changed();
+  return c;
+}
+
+////////////////////////
+// Maus / Zeiger      //
+////////////////////////
+function toWorld(e) {
+  const pt = svg.createSVGPoint();
+  pt.x = e.clientX;
+  pt.y = e.clientY;
+  return pt.matrixTransform(svg.getScreenCTM().inverse());
+}
+
+svg.addEventListener("pointerdown", e => {
+  if (e.button !== 0) return;
+  const pt = toWorld(e);
+  const pinEl = e.target.closest("[data-pin]");
+  const wireEl = e.target.closest("[data-wire]");
+  const compEl = e.target.closest("[data-comp]");
+  if (pinEl) {
+    const [c, p, io] = pinEl.dataset.pin.split("|");
+    drag = { kind: "wire", from: { c, p, io }, x: pt.x, y: pt.y, sx: e.clientX, sy: e.clientY };
+  } else if (wireEl) {
+    const w = wires[+wireEl.dataset.wire];
+    drag = { kind: "bend", w, before: snapshot(), moved: false };
+    select({ w });
+  } else if (compEl) {
+    const c = byId(compEl.dataset.comp);
+    drag = { kind: "move", c, dx: pt.x - c.x, dy: pt.y - c.y, sx: e.clientX, sy: e.clientY, before: snapshot(), moved: false,
+      toggle: !!e.target.closest("[data-toggle]") };
+    if (!sel || sel.c !== c) select({ c });
+  } else {
+    if (sel) select(null);
+    return;
+  }
+  e.preventDefault();
+  try { svg.setPointerCapture(e.pointerId); } catch (err) { /* ohne Capture geht es auch */ }
+});
+
+svg.addEventListener("pointermove", e => {
+  if (!drag || drag.kind === "palette") return;
+  const pt = toWorld(e);
+  if (drag.kind === "wire") {
+    drag.x = pt.x;
+    drag.y = pt.y;
+    render();
+  } else if (drag.kind === "move") {
+    if (!drag.moved && Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) < 4) return;
+    drag.moved = true;
+    document.body.classList.add("dragging");
+    const x = snap(pt.x - drag.dx), y = snap(pt.y - drag.dy);
+    if (x !== drag.c.x || y !== drag.c.y) { drag.c.x = Math.max(0, x); drag.c.y = Math.max(20, y); render(); }
+  } else if (drag.kind === "bend") {
+    const mx = snap(pt.x);
+    if (mx !== drag.w.mx) { drag.w.mx = mx; drag.moved = true; render(); }
+  }
+});
+
+svg.addEventListener("pointerup", e => {
+  if (!drag || drag.kind === "palette") return;
+  const d = drag;
+  drag = null;
+  document.body.classList.remove("dragging");
+  if (d.kind === "wire") {
+    const clicked = Math.hypot(e.clientX - d.sx, e.clientY - d.sy) < 4;
+    const fc = byId(d.from.c);
+    if (clicked && d.from.p === "C" && fc && CLOCKED.has(fc.type)) {
+      // Klick auf den Takteingang: Knubbel an/aus
+      pushUndo();
+      fc.props.neg = !fc.props.neg;
+      sel = { c: fc };
+      changed();
+      return;
+    }
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    const pinEl = el && el.closest("[data-pin]");
+    if (pinEl) {
+      const [c, p, io] = pinEl.dataset.pin.split("|");
+      connect(d.from, { c, p, io });
+    } else render();
+  } else if (d.kind === "move") {
+    if (d.moved) { pushUndo(d.before); save(); render(); }
+    else if (d.c.type === "switch" && d.toggle) { d.c.props.value = 1 - d.c.props.value; event(); }
+  } else if (d.kind === "bend" && d.moved) {
+    pushUndo(d.before);
+    save();
+  }
+});
+
+svg.addEventListener("pointercancel", () => { drag = null; document.body.classList.remove("dragging"); render(); });
+
+// Bausteinliste: anklicken oder auf die Fläche ziehen
+function buildPalette() {
+  const groups = {};
+  for (const [type, T] of Object.entries(TYPES)) (groups[T.group] ??= []).push(type);
+  let h = "";
+  for (const [group, types] of Object.entries(groups)) {
+    h += `<div class="pal-group"><h4>${esc(group)}</h4><div class="pal-grid">`;
+    for (const type of types) h += `<div class="pal-item" data-type="${type}" title="${esc(TYPES[type].desc)}">${iconSVG(type)}<span>${esc(TYPES[type].title)}</span></div>`;
+    h += `</div></div>`;
+  }
+  $("palette").innerHTML = h;
+}
+
+function iconSVG(type) {
+  const c = { id: "icon", type, x: 0, y: 0, name: "", props: structuredClone(DEFAULT_PROPS[type]), state: { q: 0 } };
+  if (type === "switch") c.props.value = 1;
+  const g = geo(c);
+  return `<svg viewBox="-12 -13 ${g.w + 24} ${g.h + 26}" xmlns="http://www.w3.org/2000/svg">${compSVG(c, false)}</svg>`;
+}
+
+$("palette").addEventListener("pointerdown", e => {
+  const item = e.target.closest(".pal-item");
+  if (!item || e.button !== 0) return;
+  e.preventDefault();
+  const ghost = document.createElement("div");
+  ghost.className = "ghost";
+  ghost.innerHTML = item.querySelector("svg").outerHTML;
+  ghost.hidden = true;
+  document.body.appendChild(ghost);
+  drag = { kind: "palette", type: item.dataset.type, ghost, sx: e.clientX, sy: e.clientY, moved: false };
+});
+
+document.addEventListener("pointermove", e => {
+  if (!drag || drag.kind !== "palette") return;
+  if (!drag.moved && Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) < 4) return;
+  drag.moved = true;
+  drag.ghost.hidden = false;
+  drag.ghost.style.left = e.clientX + "px";
+  drag.ghost.style.top = e.clientY + "px";
+  document.body.classList.add("dragging");
+});
+
+document.addEventListener("pointerup", e => {
+  if (!drag || drag.kind !== "palette") return;
+  const d = drag;
+  drag = null;
+  d.ghost.remove();
+  document.body.classList.remove("dragging");
+  if (d.moved) {
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    if (el && el.closest("#canvasWrap")) { const pt = toWorld(e); addComp(d.type, pt.x, pt.y); }
+  } else {
+    // Klick: in die Mitte des sichtbaren Bereichs, leicht versetzt, damit nichts übereinander liegt
+    const off = (comps.length % 6) * 20;
+    addComp(d.type, (wrap.scrollLeft + wrap.clientWidth / 2) / zoom + off, (wrap.scrollTop + wrap.clientHeight / 2) / zoom + off);
+  }
+});
+
+/////////////////////////
+// Tastatur, Knöpfe    //
+/////////////////////////
+document.addEventListener("keydown", e => {
+  const tag = e.target.tagName;
+  const typing = tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA";
+  if ((e.key === "z" || e.key === "Z") && (e.ctrlKey || e.metaKey) && !typing) { e.preventDefault(); undo(); }
+  else if ((e.key === "Delete" || e.key === "Backspace") && !typing && sel) { e.preventDefault(); deleteSelection(); }
+  else if (e.key === " " && !typing && tag !== "BUTTON") { e.preventDefault(); pulse(); }
+  else if (e.key === "ArrowRight" && !typing && !autoTimer && !pulseTimer) { e.preventDefault(); stepTime(); }
+  else if (e.key === "Escape") { if (drag && drag.kind === "wire") { drag = null; render(); } else if (sel && !typing) select(null); }
+});
+
+$("btnPulse").onclick = pulse;
+$("btnStep").onclick = () => { if (!autoTimer && !pulseTimer) stepTime(); };
+$("btnAuto").onclick = () => (autoTimer ? stopAuto() : startAuto());
+$("btnReset").onclick = resetCircuit;
+$("btnDiaClear").onclick = () => { columns = []; renderDiagram(); };
+
+function setTickWidth(w) {
+  tickW = w;
+  renderDiagram();
+  save();
+}
+$("diaIn").onclick = () => setTickWidth(TICK_WIDTHS[Math.min(TICK_WIDTHS.length - 1, TICK_WIDTHS.indexOf(tickW) + 1)]);
+$("diaOut").onclick = () => setTickWidth(TICK_WIDTHS[Math.max(0, TICK_WIDTHS.indexOf(tickW) - 1)]);
+
+function setZoom(z) {
+  zoom = z;
+  render();
+  save();
+}
+$("zoomIn").onclick = () => setZoom(ZOOMS[Math.min(ZOOMS.length - 1, ZOOMS.indexOf(zoom) + 1)]);
+$("zoomOut").onclick = () => setZoom(ZOOMS[Math.max(0, ZOOMS.indexOf(zoom) - 1)]);
+
+$("btnNew").onclick = () => {
+  if (comps.length && !confirm("Alle Bausteine entfernen? (Rückgängig mit Strg+Z)")) return;
+  pushUndo();
+  comps = [];
+  wires = [];
+  note = "";
+  sel = null;
+  resetCircuit();
+  changed();
+};
+
+$("btnSave").onclick = () => {
+  const blob = new Blob([JSON.stringify(JSON.parse(snapshot()), null, 1)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "schaltung.json";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+};
+
+$("btnOpen").onclick = () => $("fileInput").click();
+$("fileInput").onchange = async () => {
+  const f = $("fileInput").files[0];
+  $("fileInput").value = "";
+  if (!f) return;
+  try {
+    const before = snapshot();
+    restore(await f.text());
+    pushUndo(before);
+  } catch (err) {
+    alert("Die Datei enthält keine gültige Schaltung.");
+    return;
+  }
+  sel = null;
+  resetAfterLoad();
+};
+
+// nach Öffnen, Neuladen oder Beispiel: eindeutiger Anfang, alle Flipflops Q = 0
+function resetAfterLoad() {
+  stopAuto();
+  for (const c of comps) { c.state.q = c.props.init ? 1 : 0; delete c.state.clk; }
+  startTimeline();
+  noteHidden = false;
+  renderNote();
+  render();
+  renderProps();
+  save();
+}
+
+// Hinweisleiste über der Fläche; „Hinweis“ in der Werkzeugleiste holt sie nach dem Schließen zurück
+function renderNote() {
+  $("note").hidden = !note || noteHidden;
+  $("btnNote").hidden = !note || !noteHidden;
+  $("noteText").innerHTML = note.split("\n").map(l => `<p>${esc(l)}</p>`).join("");
+}
+$("noteClose").onclick = () => { noteHidden = true; renderNote(); };
+$("btnNote").onclick = () => { noteHidden = false; renderNote(); };
+
+let saveTimer = null;
+function save() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    try { localStorage.setItem(STORE_KEY, JSON.stringify({ circuit: snapshot(), zoom, tickW, diaH })); } catch (e) { /* nicht möglich, egal */ }
+  }, 300);
+}
+
+/////////////////
+// Beispiele   //
+/////////////////
+// Jedes Beispiel baut die Schaltung mit add(Typ, x, y, Name, Eigenschaften) und wire(von, Ausgang, nach, Eingang, mx)
+const EXAMPLES = [
+  {
+    name: "RS-Flipflop (asynchron)",
+    hint: "S kurz auf 1: Das Flipflop wird gesetzt (Q = 1).\nR kurz auf 1: Es wird zurückgesetzt (Q = 0).\nStehen S und R wieder auf 0, bleibt Q gespeichert. S = R = 1 gleichzeitig ist verboten.",
+    build(add, wire) {
+      const s = add("switch", 100, 100, "S"), r = add("switch", 100, 200, "R");
+      const f = add("rs", 260, 140, "F0", { watch: false });
+      wire(s, "Q", f, "S");
+      wire(r, "Q", f, "R");
+      wire(f, "Q", add("lamp", 400, 120, "Q"), "A");
+      wire(f, "Qn", add("lamp", 400, 180, "Q̄"), "A");
+    },
+  },
+  {
+    name: "D-Flipflop",
+    hint: "D einstellen, dann „Schritt“ oder „Takt-Impuls“: Q übernimmt D nur bei der steigenden Taktflanke.\nÄndert sich D genau an der Flanke, gilt noch der alte Wert.\nKlick auf das Dreieck am Takteingang setzt den Knubbel: Dann schaltet das Flipflop bei der fallenden Flanke.",
+    build(add, wire) {
+      const d = add("switch", 100, 100, "D"), takt = add("clock", 100, 160, "Takt");
+      const f = add("d", 260, 140, "F0");
+      wire(d, "Q", f, "D");
+      wire(takt, "Q", f, "C");
+      wire(f, "Q", add("lamp", 400, 140, "Q"), "A");
+      wire(f, "Qn", add("lamp", 400, 180, "Q̄"), "A");
+    },
+  },
+  {
+    name: "JK-Flipflop",
+    hint: "J = 1 setzt, K = 1 setzt zurück, J = K = 1 kippt Q bei jedem Takt, J = K = 0 hält Q.\nDer Knubbel am Takteingang bedeutet: Das Flipflop schaltet bei der fallenden Flanke.",
+    build(add, wire) {
+      const j = add("switch", 100, 100, "J"), takt = add("clock", 100, 160, "Takt"), k = add("switch", 100, 220, "K");
+      const f = add("jk", 260, 140, "F0", { neg: true });
+      wire(j, "Q", f, "J");
+      wire(takt, "Q", f, "C");
+      wire(k, "Q", f, "K");
+      wire(f, "Q", add("lamp", 400, 140, "Q"), "A");
+      wire(f, "Qn", add("lamp", 400, 180, "Q̄"), "A");
+    },
+  },
+  {
+    name: "T-Flipflop als Frequenzteiler",
+    hint: "T liegt fest auf 1. „Abspielen“ starten und im Ablaufdiagramm vergleichen:\nQ wechselt bei jeder fallenden Taktflanke und hat damit die halbe Frequenz des Takts.",
+    build(add, wire) {
+      const takt = add("clock", 100, 160, "Takt"), one = add("const", 180, 150, "", { value: 1 });
+      const f = add("t", 260, 140, "F0", { neg: true });
+      wire(one, "Q", f, "T");
+      wire(takt, "Q", f, "C");
+      wire(f, "Q", add("lamp", 400, 140, "Q"), "A");
+    },
+  },
+  {
+    name: "Asynchroner Dualzähler",
+    hint: "„Abspielen“ oder „Takt-Impuls“: Bei jeder fallenden Taktflanke zählt der Zähler um eins weiter.\nNur F0 hängt am Takt, jedes weitere Flipflop wird vom Q des vorigen getaktet.\nR auf 1 setzt den Zähler sofort auf 0, danach R wieder auf 0 stellen.",
+    build(add, wire) {
+      const x0 = 260, y = 300, S = 160;
+      const takt = add("clock", 100, y + 20, "Takt"), r = add("switch", 100, y + 110, "R");
+      const disp = add("display", x0 + 3 * S + 200, y - 190, "Zählerstand");
+      let prev = takt;
+      for (let i = 0; i < 4; i++) {
+        const x = x0 + i * S, f = add("t", x, y, "F" + i, { neg: true });
+        wire(add("const", x - 70, y - 30, "", { value: 1 }), "Q", f, "T");
+        wire(prev, "Q", f, "C");
+        wire(r, "Q", f, "AR");
+        wire(f, "Q", add("lamp", x + 100, y - 90, "Q" + i), "A", x + 80);
+        wire(f, "Q", disp, "B" + i, x + 80);
+        prev = f;
+      }
+    },
+  },
+  {
+    name: "Synchroner Dualzähler",
+    hint: "„Abspielen“ oder „Takt-Impuls“: Der Zähler zählt wie der asynchrone, aber alle Flipflops hängen am selben Takt und schalten gleichzeitig.\nDie UND-Gatter sorgen dafür, dass ein Flipflop nur kippt, wenn alle niedrigeren Stellen 1 sind.\nR auf 1 setzt den Zähler sofort auf 0, danach R wieder auf 0 stellen.",
+    build(add, wire) {
+      const x0 = 260, y = 340, S = 180, xs = [0, 1, 2, 3].map(i => x0 + i * S);
+      const takt = add("clock", 100, y + 80, "Takt"), r = add("switch", 100, y + 150, "R");
+      const disp = add("display", xs[3] + 200, y - 260, "Zählerstand");
+      const ff = xs.map((x, i) => add("t", x, y, "F" + i, { neg: true }));
+      const and1 = add("and", xs[1] + 100, y - 60), and2 = add("and", xs[2] + 100, y - 60);
+      ff.forEach((f, i) => {
+        wire(takt, "Q", f, "C", xs[i] - 20);
+        wire(r, "Q", f, "AR");
+        wire(f, "Q", add("lamp", xs[i] + 100, y - 150, "Q" + i), "A", xs[i] + 80);
+        wire(f, "Q", disp, "B" + i, xs[i] + 80);
+      });
+      wire(add("const", x0 - 70, y - 30, "", { value: 1 }), "Q", ff[0], "T");
+      wire(ff[0], "Q", ff[1], "T");
+      wire(ff[0], "Q", and1, "I0", xs[0] + 80);
+      wire(ff[1], "Q", and1, "I1", xs[1] + 80);
+      wire(and1, "Y", ff[2], "T");
+      wire(and1, "Y", and2, "I0");
+      wire(ff[2], "Q", and2, "I1", xs[2] + 80);
+      wire(and2, "Y", ff[3], "T");
+    },
+  },
+  {
+    // Folie 71: Schieberegister zur parallel/seriellen Umsetzung (F3 bis F0, Fs, Qa = Qs UND Takt)
+    name: "Schieberegister (parallel/seriell)",
+    hint: "Alle Flipflops starten mit Q = 0.\n1. E3 bis E0 einstellen, z. B. 1 1 0 1.\n2. S kurz auf 1 und wieder auf 0, ohne Taktflanke dazwischen: Q3 bis Q0 übernehmen E3 bis E0.\n3. „Takt-Impuls“: Die Bits wandern bei jeder steigenden Flanke nach rechts und kommen an Qs nacheinander heraus, das niedrigstwertige zuerst. Qa gibt sie als Impulse im Takt aus.\nFür einen neuen Versuch löscht R kurz auf 1 (und wieder auf 0) alle Flipflops.",
+    build(add, wire) {
+      const x0 = 300, y = 320, S = 160, xs = x0 + 4 * S;
+      const s = add("switch", x0 - 130, y - 60, "S");
+      const zero = add("const", x0 - 70, y + 10, "", { value: 0 });
+      const takt = add("clock", x0 - 130, y + 80, "Takt");
+      const r = add("switch", x0 - 130, y + 150, "R");
+      let prev = zero;
+      for (let k = 0; k < 4; k++) {
+        const i = 3 - k, x = x0 + k * S;
+        const f = add("d", x, y, "F" + i);
+        wire(prev, "Q", f, "D");
+        wire(takt, "Q", f, "C", x - 20);
+        wire(r, "Q", f, "AR");
+        const g = add("and", x - 40, y - 90);
+        wire(g, "Y", f, "AS");
+        wire(add("switch", x - 130, y - 150, "E" + i), "Q", g, "I0", x - 70);
+        wire(s, "Q", g, "I1", x - 60);
+        wire(f, "Q", add("lamp", x + 100, y + 50, "Q" + i), "A", x + 80);
+        prev = f;
+      }
+      // Fs übernimmt das jeweils hinausgeschobene Bit; Qa gibt es als Impuls im Takt aus
+      const fs = add("d", xs, y, "Fs");
+      wire(prev, "Q", fs, "D");
+      wire(takt, "Q", fs, "C", xs - 20);
+      wire(r, "Q", fs, "AR");
+      wire(fs, "Q", add("lamp", xs + 100, y - 60, "Qs"), "A");
+      const out = add("and", xs + 110, y + 10);
+      wire(fs, "Q", out, "I0");
+      wire(takt, "Q", out, "I1", xs + 90);
+      wire(out, "Y", add("lamp", xs + 190, y + 10, "Qa"), "A");
+    },
+  },
+
+  // Übungsblatt 4: Schaltungen nachgebaut, Lösung wird nicht verraten (keine Zahlenanzeige)
+  {
+    group: "Übungsblatt 4",
+    name: "Aufgabe 9",
+    hint: "Aufgabe 9 vom Übungsblatt 4: Welche Funktion erfüllt die Schaltung?\nAlle Flipflops starten mit Q = 0. Mit „Takt-Impuls“ 16 Takte erzeugen und das Ablaufdiagramm mit der eigenen Lösung vergleichen.\nR kurz auf 1 (und wieder auf 0) setzt alle Flipflops jederzeit auf 0 zurück.",
+    build(add, wire) {
+      const x0 = 260, y = 300, S = 160;
+      const takt = add("clock", 100, y + 20, "Takt"), r = add("switch", 100, y + 110, "R");
+      let prev = null;
+      for (let i = 0; i < 4; i++) {
+        const x = x0 + i * S, f = add("t", x, y, "T" + i, { neg: true });
+        wire(add("const", x - 70, y - 30, "", { value: 1 }), "Q", f, "T");
+        if (prev) wire(prev, "Qn", f, "C"); else wire(takt, "Q", f, "C");
+        wire(r, "Q", f, "AR");
+        wire(f, "Q", add("lamp", x + 100, y - 90, "Q" + i), "A", x + 80);
+        prev = f;
+      }
+    },
+  },
+  {
+    group: "Übungsblatt 4",
+    name: "Aufgabe 10",
+    hint: "Aufgabe 10 vom Übungsblatt 4: Welche Funktion erfüllt die Schaltung?\nWie auf dem Blatt startet D0 mit Q = 1, alle anderen Flipflops mit 0. Im Ablaufdiagramm sind auch Q4 bis Q8 zu sehen, die auf dem Blatt ausgelassen sind.\nMit „Takt-Impuls“ 11 Takte erzeugen und das Ablaufdiagramm mit der eigenen Lösung vergleichen. Mit dem Minus oben rechts passt die ganze Schaltung auf die Fläche.",
+    build(add, wire) {
+      const x0 = 200, y = 260, S = 120, n = 10, ff = [];
+      const takt = add("clock", 60, y + 80, "Takt");
+      for (let i = 0; i <= n; i++) {
+        const x = x0 + i * S, f = add("d", x, y, "D" + i, i === 0 ? { init: 1 } : {});
+        wire(takt, "Q", f, "C", x - 30);
+        if (i > 0) wire(ff[i - 1], "Q", f, "D");
+        wire(f, "Q", add("lamp", x + 100, y - 110, i < n ? "Q" + i : "QÜ"), "A", x + 80);
+        ff.push(f);
+      }
+      wire(ff[9], "Q", ff[0], "D", null, y - 50);   // Rückführung von Q9 auf D0, oberhalb der Flipflops
+    },
+  },
+  {
+    group: "Übungsblatt 4",
+    name: "Aufgabe 11",
+    hint: "Aufgabe 11 vom Übungsblatt 4: Welche Funktion erfüllt die Schaltung?\nSY ist hier ein D-Flipflop: Es übernimmt den Eingang S mit der steigenden Taktflanke (Qs).\nAlle Flipflops starten mit Q = 0. S vor den ersten vier steigenden Flanken nacheinander auf 1, 1, 0, 1 stellen und danach auf 0, so verläuft Qs wie auf dem Blatt.\nDas Ablaufdiagramm mit der eigenen Lösung vergleichen. R kurz auf 1 (und wieder auf 0) löscht D3 bis D0.",
+    build(add, wire) {
+      const x0 = 260, y = 300, S = 160;
+      const s = add("switch", 100, y, "S");
+      const takt = add("clock", 100, y + 80, "Takt");
+      const r = add("switch", 100, y + 150, "R");
+      const sy = add("d", x0, y, "SY");
+      wire(s, "Q", sy, "D");
+      wire(takt, "Q", sy, "C", x0 - 20);
+      wire(sy, "Q", add("lamp", x0 + 100, y - 90, "Qs"), "A", x0 + 80);
+      let prev = sy;
+      for (let k = 0; k < 4; k++) {
+        const i = 3 - k, x = x0 + (k + 1) * S, f = add("d", x, y, "D" + i);
+        wire(prev, "Q", f, "D");
+        wire(takt, "Q", f, "C", x - 20);
+        wire(r, "Q", f, "AR");
+        wire(f, "Q", add("lamp", x + 100, y - 90, "Q" + i), "A", x + 80);
+        prev = f;
+      }
+    },
+  },
+];
+
+function loadExample(ex) {
+  const before = comps.length ? snapshot() : null;
+  comps = [];
+  wires = [];
+  nextId = 1;
+  const add = (type, x, y, name, props) => { const c = makeComp(type, x, y, name, props); comps.push(c); return c; };
+  const wire = (a, ap, b, bp, mx, my) => wires.push({ from: { c: a.id, p: ap }, to: { c: b.id, p: bp },
+    ...(mx != null ? { mx } : {}), ...(my != null ? { my } : {}) });
+  ex.build(add, wire);
+  note = ex.hint || "";
+  if (before) pushUndo(before);
+  sel = null;
+  wrap.scrollTo(0, 0);
+  resetAfterLoad();
+  fitDiagram();
+}
+
+// Auswahlliste nach Gruppen: Vorlesung, Übungsblätter
+const exGroups = {};
+EXAMPLES.forEach((ex, i) => {
+  const g = ex.group || "Vorlesung";
+  if (!exGroups[g]) { exGroups[g] = document.createElement("optgroup"); exGroups[g].label = g; $("examples").append(exGroups[g]); }
+  exGroups[g].append(new Option(ex.name, i));
+});
+$("examples").onchange = () => {
+  const ex = EXAMPLES[+$("examples").value];
+  $("examples").value = "";
+  if (ex) loadExample(ex);
+};
+
+// Trennlinie über dem Ablaufdiagramm: ziehen, Pfeiltasten, Doppelklick setzt zurück
+const DIA_DEFAULT = 260, DIA_MIN = 110;
+let diaH = DIA_DEFAULT, vDrag = null;
+
+function setDiaHeight(h, persist = true) {
+  const max = Math.max(DIA_MIN, document.querySelector("section.stage").clientHeight - 160);
+  diaH = Math.round(Math.min(max, Math.max(DIA_MIN, h)));
+  document.querySelector(".diagram").style.height = diaH + "px";
+  renderDiagram();
+  if (persist) save();
+}
+// Ablaufdiagramm so hoch, dass alle Signale ohne Scrollen sichtbar sind (höchstens bis zur Grenze oben)
+function fitDiagram() {
+  const head = document.querySelector(".dia-head").offsetHeight;
+  setDiaHeight(Math.max(DIA_DEFAULT, head + 4 + 18 + Math.max(1, watched().length) * ROW + 18));
+}
+
+$("hsplit").addEventListener("pointerdown", e => {
+  e.preventDefault();
+  vDrag = { y: e.clientY, h: diaH };
+  $("hsplit").classList.add("active");
+  document.body.classList.add("resizing-v");
+});
+window.addEventListener("pointermove", e => { if (vDrag) setDiaHeight(vDrag.h - (e.clientY - vDrag.y), false); });
+window.addEventListener("pointerup", () => {
+  if (!vDrag) return;
+  vDrag = null;
+  $("hsplit").classList.remove("active");
+  document.body.classList.remove("resizing-v");
+  save();
+});
+$("hsplit").addEventListener("dblclick", () => setDiaHeight(DIA_DEFAULT));
+$("hsplit").addEventListener("keydown", e => {
+  if (e.key === "ArrowUp") { e.preventDefault(); setDiaHeight(diaH + 20); }
+  else if (e.key === "ArrowDown") { e.preventDefault(); setDiaHeight(diaH - 20); }
+});
+
+////////////////
+// Start      //
+////////////////
+buildPalette();
+let restored = false, savedDiaH = DIA_DEFAULT;
+try {
+  const s = JSON.parse(localStorage.getItem(STORE_KEY));
+  if (s && s.circuit) {
+    restore(s.circuit);
+    if (ZOOMS.includes(s.zoom)) zoom = s.zoom;
+    if (TICK_WIDTHS.includes(s.tickW)) tickW = s.tickW;
+    if (Number.isFinite(s.diaH)) savedDiaH = s.diaH;
+    restored = true;
+  }
+} catch (e) { restored = false; }
+if (restored) resetAfterLoad();
+else loadExample(EXAMPLES.find(ex => ex.name === "Asynchroner Dualzähler"));
+if (restored) setDiaHeight(savedDiaH, false);
+</script>
+</body>
+</html>

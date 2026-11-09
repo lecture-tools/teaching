@@ -1,0 +1,1181 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Einadressmaschine</title>
+<style>
+:root {
+  --bg: #f4f6f9; --panel: #ffffff; --border: #d8dde4; --border-soft: #eceff3;
+  --text: #1b2230; --muted: #5d6877; --accent: #0065bd; --accent-text: #ffffff;
+  --addr: #1a7f37; --op: #0550ae; --val: #8a5a00; --out: #a0207a; --err: #c8202c; --warn: #9a6200;
+  --cur: #fff1bf; --cur-mark: #e8c547; --write: #d6f2dc; --err-bg: #fde4e4;
+  --code-bg: #fbfcfd; --btn: #eef1f5; --btn-hover: #e1e6ed;
+  --label: #8250df; --sel: rgba(0, 101, 189, .22);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #10141a; --panel: #181d25; --border: #2b333f; --border-soft: #222934;
+    --text: #e4e8ee; --muted: #98a3b3; --accent: #4a9be6; --accent-text: #0b1320;
+    --addr: #5bd370; --op: #7db6ff; --val: #e4b64a; --out: #f47bbd; --err: #ff7b72; --warn: #e0a63c;
+    --cur: #3a321b; --cur-mark: #8a7424; --write: #1d3a28; --err-bg: #42201f;
+    --code-bg: #141920; --btn: #222935; --btn-hover: #2b3442;
+    --label: #d2a8ff; --sel: rgba(74, 155, 230, .35);
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #10141a; --panel: #181d25; --border: #2b333f; --border-soft: #222934;
+  --text: #e4e8ee; --muted: #98a3b3; --accent: #4a9be6; --accent-text: #0b1320;
+  --addr: #5bd370; --op: #7db6ff; --val: #e4b64a; --out: #f47bbd; --err: #ff7b72; --warn: #e0a63c;
+  --cur: #3a321b; --cur-mark: #8a7424; --write: #1d3a28; --err-bg: #42201f;
+  --code-bg: #141920; --btn: #222935; --btn-hover: #2b3442;
+  --label: #d2a8ff; --sel: rgba(74, 155, 230, .35);
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg); color: var(--text);
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  display: flex; flex-direction: column; height: 100vh;
+}
+.mono, textarea, .code, .gutter, .console, .mem, .rv, .next, code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+}
+h1 { font-size: 17px; margin: 0; }
+h2 { font-size: 13px; margin: 0; font-weight: 650; }
+.muted { color: var(--muted); font-weight: 400; }
+.small { font-size: 12px; }
+
+header.top {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px 16px; flex-wrap: wrap;
+  padding: 10px 16px; border-bottom: 1px solid var(--border); background: var(--panel);
+}
+.sub { color: var(--muted); font-size: 12.5px; }
+.tools { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+button, select, input[type=number] {
+  font: inherit; font-size: 13px; color: var(--text);
+  border: 1px solid var(--border); border-radius: 6px;
+}
+button { padding: 6px 12px; background: var(--btn); cursor: pointer; white-space: nowrap; }
+button:hover:not(:disabled) { background: var(--btn-hover); }
+button:disabled { opacity: .45; cursor: default; }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); font-weight: 600; }
+button.primary:hover:not(:disabled) { background: var(--accent); filter: brightness(1.08); }
+select, input[type=number] { padding: 5px 8px; background: var(--panel); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+main.grid {
+  flex: 1; min-height: 0;
+  display: grid; row-gap: 12px; column-gap: 0; padding: 12px 16px;
+  /* --ed-w: Breite des Editors, wird über die Trennlinie verändert */
+  grid-template-columns: minmax(0, var(--ed-w, 46%)) 12px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1.35fr) minmax(0, 1fr);
+  grid-template-areas: "ed split mach" "ed split con";
+}
+.splitter { grid-area: split; position: relative; cursor: col-resize; touch-action: none; }
+.splitter::before {
+  content: ""; position: absolute; top: 0; bottom: 0; left: 5px; width: 2px; border-radius: 1px;
+  background: transparent; transition: background .15s;
+}
+.splitter::after {
+  content: ""; position: absolute; top: 50%; left: 4px; width: 4px; height: 36px; margin-top: -18px;
+  border-radius: 2px; background: var(--border); transition: background .15s;
+}
+.splitter:hover::before, .splitter.active::before, .splitter:focus-visible::before { background: var(--accent); }
+.splitter:hover::after, .splitter.active::after, .splitter:focus-visible::after { background: var(--accent); }
+.splitter:focus-visible { outline: none; }
+body.resizing { cursor: col-resize; user-select: none; }
+.panel {
+  background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+  display: flex; flex-direction: column; min-height: 0; overflow: hidden;
+}
+.editor-panel { grid-area: ed; position: relative; }
+.drop {
+  position: absolute; inset: 0; z-index: 5; display: flex; align-items: center; justify-content: center;
+  background: var(--panel); opacity: .94; border: 2px dashed var(--accent); border-radius: 8px;
+  color: var(--accent); font-weight: 600; font-size: 16px; pointer-events: none;
+}
+.drop[hidden] { display: none; }
+.machine-panel { grid-area: mach; }
+.console-panel { grid-area: con; }
+.panel-head {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 8px 12px; border-bottom: 1px solid var(--border); min-height: 40px;
+}
+.panel-head .spacer { flex: 1; }
+.badge { font-size: 11.5px; color: var(--warn); border: 1px solid currentColor; border-radius: 10px; padding: 0 8px; }
+
+/* Editor; --ed-fs und --ed-lh (Schriftgröße, Zeilenhöhe) setzen die Knöpfe A− / A+ */
+.editor { flex: 1; min-height: 0; display: flex; background: var(--code-bg); --ed-fs: 13px; --ed-lh: 20px; }
+.gutter {
+  width: calc(3ch + 22px); flex: none; overflow: hidden; padding: 8px 8px 60px 0; text-align: right;
+  color: var(--muted); font-size: var(--ed-fs); line-height: var(--ed-lh); user-select: none;
+  border-right: 1px solid var(--border);
+}
+.gutter div { height: var(--ed-lh); }
+.gutter div.cur { color: var(--text); background: var(--cur-mark); }
+.gutter div.err { color: #fff; background: var(--err); }
+.ed-wrap { position: relative; flex: 1; min-width: 0; overflow: hidden; }
+.hl { position: absolute; left: 0; right: 0; top: 0; height: 20px; background: var(--cur); pointer-events: none; }
+.hl.err { background: var(--err-bg); }
+/* Syntax-Highlighting: farbige Kopie (.code) liegt deckungsgleich unter dem durchsichtigen Eingabefeld */
+textarea, .code {
+  margin: 0; padding: 8px 10px; font-size: var(--ed-fs); line-height: var(--ed-lh); tab-size: 4;
+  white-space: pre-wrap; overflow-wrap: break-word; word-break: normal;
+  font-variant-ligatures: none; letter-spacing: 0;
+}
+textarea {
+  position: absolute; inset: 0; width: 100%; height: 100%; resize: none; border: 0; outline: 0;
+  background: transparent; overflow-x: hidden; overflow-y: auto;
+  color: transparent; -webkit-text-fill-color: transparent; caret-color: var(--text);
+}
+textarea::selection { background: var(--sel); }
+/* Breite setzt syncEditor() auf die Textbreite des Eingabefelds, damit beide gleich umbrechen */
+.code { position: absolute; top: 0; left: 0; color: var(--text); pointer-events: none; }
+.code > div { min-height: var(--ed-lh); }
+.zoom { display: inline-flex; }
+.zoom button { padding: 6px 9px; font-weight: 600; }
+.zoom button:first-child { border-radius: 6px 0 0 6px; }
+.zoom button:last-child { border-radius: 0 6px 6px 0; border-left: 0; }
+.t-com { color: var(--muted); }
+.t-addr { color: var(--addr); }
+.t-op { color: var(--op); }
+.t-arg { color: var(--addr); }
+.t-num { color: var(--val); }
+.t-lbl { color: var(--label); }
+.t-err { color: var(--err); text-decoration: underline wavy; text-underline-offset: 3px; }
+details.help { border-top: 1px solid var(--border); max-height: 45%; overflow: auto; flex: none; }
+details.help summary { cursor: pointer; padding: 8px 12px; font-weight: 600; font-size: 13px; }
+.help-body { padding: 0 12px 12px; font-size: 13px; }
+.help-body ul { margin: 4px 0 10px; padding-left: 18px; }
+.help-body table { border-collapse: collapse; width: 100%; }
+.help-body td { padding: 2px 8px 2px 0; vertical-align: top; border-bottom: 1px solid var(--border-soft); }
+code { font-size: 12.5px; background: var(--btn); padding: 0 4px; border-radius: 3px; }
+
+/* Machine */
+.controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px 12px; border-bottom: 1px solid var(--border); }
+.controls label { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
+.controls input[type=number] { width: 68px; }
+.seg { display: inline-flex; align-items: center; }
+.seg-lbl { font-size: 13px; color: var(--muted); margin-right: 6px; }
+.seg input { position: absolute; opacity: 0; pointer-events: none; }
+.seg .opt {
+  padding: 6px 12px; border: 1px solid var(--border); background: var(--btn); color: var(--text);
+  font-size: 13px; cursor: pointer; white-space: nowrap;
+}
+.seg label:first-of-type .opt { border-radius: 6px 0 0 6px; }
+.seg label:last-of-type .opt { border-radius: 0 6px 6px 0; border-left: 0; }
+.seg .opt:hover { background: var(--btn-hover); }
+.seg input:checked + .opt { background: var(--panel); color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); font-weight: 600; }
+.seg input:focus-visible + .opt { outline: 2px solid var(--accent); outline-offset: 1px; }
+.regs { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; padding: 10px 12px 6px; }
+.reg { border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; min-width: 0; }
+.rn { display: block; font-size: 11.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rn b { color: var(--text); }
+.rv { display: block; font-size: 18px; margin-top: 1px; white-space: nowrap; }
+.st-running { color: var(--accent); } .st-halted { color: var(--addr); }
+.st-error { color: var(--err); } .st-input { color: var(--out); }
+.next { padding: 4px 12px 10px; font-size: 13px; min-height: 2.2em; border-bottom: 1px solid var(--border); overflow-wrap: anywhere; }
+.next .lbl { font-family: system-ui, sans-serif; color: var(--muted); }
+.next .desc { margin-left: 10px; }
+.mem { flex: 1; min-height: 0; overflow: auto; position: relative; }
+.mem table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.mem th {
+  position: sticky; top: 0; z-index: 1; background: var(--panel); text-align: left;
+  font: 600 11px system-ui, sans-serif; color: var(--muted); text-transform: uppercase; letter-spacing: .04em;
+  padding: 6px 10px; border-bottom: 1px solid var(--border);
+}
+.mem td { padding: 2px 10px; border-bottom: 1px solid var(--border-soft); white-space: nowrap; }
+.mem tr.cur td { background: var(--cur); }
+.mem tr.cur td:first-child { box-shadow: inset 3px 0 var(--accent); }
+.mem tr.wr td { background: var(--write); }
+.mem .empty td { color: var(--muted); font-family: system-ui, sans-serif; padding: 12px 10px; }
+.addr { color: var(--addr); } .op { color: var(--op); font-weight: 600; } .val { color: var(--val); }
+.dim { color: var(--muted); }
+.tag { font: 11px system-ui, sans-serif; color: var(--warn); border: 1px solid currentColor; border-radius: 4px; padding: 0 4px; margin-left: 6px; }
+
+/* Console */
+.console-panel .panel-head label { font-size: 13px; display: inline-flex; gap: 5px; align-items: center; color: var(--muted); }
+.console { flex: 1; min-height: 0; overflow: auto; padding: 8px 12px; font-size: 13px; background: var(--code-bg); }
+.ln { white-space: pre-wrap; padding: 1px 0; overflow-wrap: anywhere; }
+.ln.log { color: var(--muted); }
+.ln.out { color: var(--out); font-weight: 700; font-size: 15px; }
+.ln.out .dim { font-weight: 400; font-size: 13px; }
+.ln.err { color: var(--err); font-weight: 600; }
+.ln.warn { color: var(--warn); }
+.ln.info { color: var(--muted); font-style: italic; }
+.ln.inp { color: var(--text); font-weight: 600; }
+.ln.inp input {
+  font: inherit; width: 10ch; padding: 1px 6px; margin-left: 4px; color: var(--text);
+  background: var(--panel); border: 1px solid var(--out); border-radius: 4px;
+}
+.ln.inp .hint { color: var(--err); font-weight: 400; }
+.ln.cancelled { opacity: .5; }
+
+@media (max-width: 900px) {
+  body { height: auto; display: block; }
+  main.grid { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; grid-template-areas: "ed" "mach" "con"; }
+  .splitter { display: none; }
+  .editor { flex: none; height: 55vh; }
+  .mem { flex: none; max-height: 50vh; }
+  .console { flex: none; height: 40vh; }
+  details.help { max-height: none; }
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <div>
+    <h1>Einadressmaschine</h1>
+    <div class="sub">Simulator zur Vorlesung Grundlagen der Informationstechnik, Prof. Hanik</div>
+  </div>
+  <div class="tools">
+    <select id="examples" aria-label="Beispielprogramm"><option value="">Beispielprogramm laden …</option></select>
+    <input type="file" id="fileInput" accept=".as,.txt,text/plain" hidden>
+  </div>
+</header>
+
+<main class="grid">
+  <section class="panel editor-panel">
+    <div class="panel-head">
+      <h2>Programm <span id="fileName" class="muted"></span></h2>
+      <span id="dirty" class="badge" hidden>geändert · „Laden“ übernimmt die Änderung</span>
+      <span class="spacer"></span>
+      <span class="zoom" role="group" aria-label="Schriftgröße im Editor">
+        <button id="btnZoomOut" title="Schrift im Editor verkleinern">A−</button>
+        <button id="btnZoomIn" title="Schrift im Editor vergrößern">A+</button>
+      </span>
+      <button id="btnNew" title="Mit einem leeren Programm beginnen">Neu</button>
+      <button id="btnOpen" title="Eine .as-Datei öffnen oder die Datei einfach in den Editor ziehen">Datei öffnen …</button>
+      <button id="btnSave" title="Programm als .as-Datei herunterladen">Speichern</button>
+    </div>
+    <div class="drop" id="drop" hidden>.as-Datei hier ablegen</div>
+    <div class="editor">
+      <div class="gutter" id="gutter" aria-hidden="true" title="Speicheradresse, in die das Wort dieser Zeile geladen wird"></div>
+      <div class="ed-wrap">
+        <div class="hl" id="hl" hidden></div>
+        <pre class="code" id="code" aria-hidden="true"></pre>
+        <textarea id="src" spellcheck="false" autocorrect="off" autocomplete="off" autocapitalize="off"
+          data-gramm="false" data-gramm_editor="false" data-enable-grammarly="false" aria-label="Assembler-Quelltext"></textarea>
+      </div>
+    </div>
+    <details class="help">
+      <summary>Befehlssatz und Syntax</summary>
+      <div class="help-body">
+        <ul>
+          <li>Jede Zeile: <code>[Adresse:] [Wort] [@Name]</code>. Alles nach <code>#</code> oder <code>;</code> ist Kommentar.</li>
+          <li>Ein Wort ist eine Dezimalzahl von −99999 bis 99999. Ein Befehl besteht aus 2 Ziffern Befehlscode und 3 Ziffern Adresse, z.&nbsp;B. <code>01 040</code>. Leerzeichen werden ignoriert.</li>
+          <li>Ohne Adressangabe kommt jedes Wort in die nächste Speicherzelle (beginnend bei 000).
+            Die Spalte links im Editor zeigt, in welche Speicherzelle das Wort einer Zeile geladen wird. Es sind keine Zeilennummern.</li>
+          <li>Eine Zelle nur mit <code>@Name</code> bekommt einen Namen, aber keinen Wert. Dort steht dann ein Zufallswert.</li>
+          <li>Die <b>Startadresse</b> legt fest, wo der Befehlszähler beginnt (Standard 000).</li>
+          <li>Tastatur: <code>Strg</code>+<code>Enter</code> Start/Weiter, <code>F10</code> Einzelschritt.</li>
+          <li>Eigene <code>.as</code>-Dateien über „Datei öffnen …“ laden oder einfach in den Editor ziehen.</li>
+          <li>Die Trennlinie zwischen Editor und Maschine lässt sich mit der Maus verschieben (Doppelklick: zurücksetzen).</li>
+          <li><b>A−</b> / <b>A+</b> ändern die Schriftgröße im Editor. Die ganze Seite vergrößert der Browser mit <code>Strg</code>/<code>⌘</code> + <code>+</code>.</li>
+        </ul>
+        <table id="isaTable"></table>
+      </div>
+    </details>
+  </section>
+
+  <div class="splitter" id="splitter" role="separator" aria-orientation="vertical" aria-label="Breite des Editors"
+    aria-valuemin="20" aria-valuemax="75" tabindex="0" title="Ziehen, um die Breite zu ändern. Doppelklick setzt zurück."></div>
+
+  <section class="panel machine-panel">
+    <div class="controls">
+      <label>Startadresse <input id="startAddr" type="number" min="0" max="999" value="0"></label>
+      <button id="btnLoad" title="Quelltext übersetzen und in den Speicher laden">Laden</button>
+      <button id="btnStep" title="Einen Befehl ausführen (F10)">Schritt</button>
+      <button id="btnRun" class="primary" title="Programm ausführen (Strg+Enter)">Start</button>
+      <button id="btnPause">Pause</button>
+      <div class="seg" role="radiogroup" aria-label="Tempo">
+        <span class="seg-lbl">Tempo</span>
+        <label title="1 Befehl pro Sekunde zum Mitverfolgen"><input type="radio" name="speed" value="slow" checked><span class="opt">Langsam</span></label>
+        <label title="So schnell wie möglich"><input type="radio" name="speed" value="fast"><span class="opt">Schnell</span></label>
+      </div>
+    </div>
+    <div class="regs">
+      <div class="reg"><span class="rn"><b>BZ</b> Befehlszähler</span><span id="rIP" class="rv addr">&nbsp;</span></div>
+      <div class="reg"><span class="rn"><b>AK</b> Akkumulator</span><span id="rACC" class="rv val">&nbsp;</span></div>
+      <div class="reg"><span class="rn">Schritte</span><span id="rSteps" class="rv">0</span></div>
+      <div class="reg"><span class="rn">Status</span><span id="rStatus" class="rv" style="font-size:15px;font-family:system-ui,sans-serif">&nbsp;</span></div>
+    </div>
+    <div class="next" id="nextIns"></div>
+    <div class="mem" id="memWrap">
+      <table>
+        <thead><tr><th>Adr.</th><th>Name</th><th>Inhalt</th><th>Als Befehl gelesen</th></tr></thead>
+        <tbody id="memBody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="panel console-panel">
+    <div class="panel-head">
+      <h2>Ein- und Ausgabe</h2>
+      <span class="spacer"></span>
+      <label><input type="checkbox" id="verbose" checked> jeden Befehl protokollieren</label>
+      <button id="btnClear">Leeren</button>
+    </div>
+    <div class="console" id="console" aria-live="polite"></div>
+  </section>
+</main>
+
+<script>
+"use strict";
+
+// Beispielprogramme aus Vorlesung und Übung (Name, Startadresse, Quelltext)
+const EXAMPLES = [
+ {
+  "name": "intro_simpleAdd.as",
+  "start": 0,
+  "src": "# Alle Zeichen nach einer Raute sind \"Kommentare\" und werden vom Prozessor ignoriert.\n; Das gilt ebenso für Strichpunkte.\n#\n# *** Programm (ab Speicherzelle 000) ***\n000:\n    # Zwei Werte x und y einlesen\n    11 027 # Wert für x einlesen (Befehl 11) und in Adresse 27 ablegen\n    11 042 # y einlesen -> Adresse 42\n\n    # Werte addieren und Ergebnis speichern\n    01 027 # Wert von x in den Akkumulator laden\n    02 042 # Wert von y dazu addieren\n    08 017 # Ergebnis der Addition aus dem Akkumulator nach Adresse 17 (z) speichern\n\n    # Ergebnis ausgeben\n    12 017 # Ausgeben (12) des Ergebnisses z von Adresse 17\n\n    # Programm beenden\n    00 123 # HLT (irgendeine Adresse, da sie für HLT egal ist)\n\n\n\n# *** Vordefinierte Variablen ***\n# x hat den Startwert 12345. Er wird beim Einlesen überschrieben. y und z haben keinen Startwert.\n27:\n    12345 @ x\n42:\n          @ y\n17:\n          @ z\n"
+ },
+ {
+  "name": "Intro_Ex1_lineareFunktion.as",
+  "start": 0,
+  "src": "# Alle Zeichen nach einer Raute sind \"Kommentare\" und werden vom Prozessor ignoriert.\n; Das gilt ebenso für Strichpunkte.\n#\n# ################ #\n# Programm Sektion #\n# ################ #\n# Dieser Bereich des Speichers wird als Programm verwendet.\n\n# A: Einlesen von m, b und x\n000: 11 050 # Einlesen m\n     11 051 # Einlesen b\n     11 052 # Einlesen x\n\n# B: Berechnen von m*x\n     01 050 # m -> AK\n     04 052 # <AK> * x -> AK\n\n# C: Berechnen und speichern von y\n     02 051 # <AK>+b -> AK\n     08 053 # <AK> -> y\n\n# D: Ausgeben und Programm beenden\n     12 053 # y Ausgeben\n     00 000 # HLT\n\n\n\n# ############# #\n# Daten Sektion #\n# ############# #\n# Dieser Bereich des Speichers wird für Daten verwendet. Eigentlich spricht\n# nichts dagegen, die Bereiche zu tauschen. Einzig der Befehlszähler und\n# Ihr Programm entscheiden darüber, was Daten sind und was Befehle.\n\n# *** Namen für die Variablen vergeben ***\n#\n# Man kann Speicherzellen mit einem Namen versehen, indem man ihn hinter ein @-Zeichen schreibt.\n# Das hat keinen Einfluss auf das Programm, aber wenn der Assembler Informationen über die\n# Speicherzelle hat, schreibt er den Namen dazu und es ist leichter nachvollziehbar, was gerade passiert:\n050:    # Es reicht, einmal anzugeben, wo die nächsten Wörter / Befehle\n        # abgespeichert werden sollen (wie hier für m, b, x und y).\n        @ m\n        @ b\n        @ x\n        @ y\n"
+ },
+ {
+  "name": "Intro_Ex2_Sprungfunktion.as",
+  "start": 0,
+  "src": "# Alle Zeichen nach einer Raute sind \"Kommentare\" und werden vom Prozessor ignoriert.\n; Das gilt ebenso für Strichpunkte.\n#\n# ################ #\n# Programm Sektion #\n# ################ #\n# Dieser Bereich des Speichers wird als Programm verwendet.\n\n# A: Einlesen von x\n000: 11 020 # Einlesen x\n\n# B: x in Akkumulator kopieren\n     01 020 # x -> AK\n\n# C: Sprungbefehle / Verzweigungen\n     13 010 # falls <AK> >0 springe zu 010\n     10 015 # falls <AK> <0 springe zu 015\n     14 015 # falls <AK> =0 springe zu 015\n\n# D: Erster Fall x>0\n010: 12 021 # 1 Ausgeben\n     00 000 # HLT\n\n# E: Zweiter Fall x<=0\n015: 12 022 # 0 Ausgeben\n     00 000 # HLT\n\n# ############# #\n# Daten Sektion #\n# ############# #\n# Dieser Bereich des Speichers wird für Daten verwendet. Eigentlich spricht\n# nichts dagegen, die Bereiche zu tauschen. Einzig der Befehlszähler und\n# Ihr Programm entscheiden darüber, was Daten sind und was Befehle.\n\n# *** Namen für die Variablen vergeben ***\n#\n# Man kann Speicherzellen mit einem Namen versehen, indem man ihn hinter ein @-Zeichen schreibt.\n# Das hat keinen Einfluss auf das Programm, aber wenn der Assembler Informationen über die\n# Speicherzelle hat, schreibt er den Namen dazu und es ist leichter nachvollziehbar, was gerade passiert:\n020:    # Es reicht, einmal anzugeben, wo die nächsten Wörter / Befehle\n        # abgespeichert werden sollen (wie hier für x, E und N).\n        @ x\n     00 001 @ E # Eins gespeichert\n     00 000 @ N # Null gespeichert\n"
+ },
+ {
+  "name": "Intro_Ex2_Sprungfunktion_opt.as",
+  "start": 0,
+  "src": "# Dies ist ein Versuch, dieselbe Funktionalität wie 'Intro_Ex2_Sprungfunktion.as' abzubilden und dabei die Anzahl der Befehle zu reduzieren.\n# Alle Zeichen nach einer Raute sind \"Kommentare\" und werden vom Prozessor ignoriert.\n; Das gilt ebenso für Strichpunkte.\n#\n# ################ #\n# Programm Sektion #\n# ################ #\n# Dieser Bereich des Speichers wird als Programm verwendet.\n\n# A: Einlesen von x und Laden in den AK\n000: 11 020 # Einlesen x\n     01 020 # x -> AK\n\n# B: Sprungbefehle / Verzweigungen\n     13 005 # falls <AK> >0 springe zu 005\n     12 022 # 0 Ausgeben (zweiter Fall x<=0)\n     00 000 # HLT\n\n# C: Erster Fall x>0\n     12 021 # 1 Ausgeben\n     00 000 # HLT\n\n\n\n# ############# #\n# Daten Sektion #\n# ############# #\n# Dieser Bereich des Speichers wird für Daten verwendet. Eigentlich spricht\n# nichts dagegen, die Bereiche zu tauschen. Einzig der Befehlszähler und\n# Ihr Programm entscheiden darüber, was Daten sind und was Befehle.\n\n# *** Namen für die Variablen vergeben ***\n#\n# Man kann Speicherzellen mit einem Namen versehen, indem man ihn hinter ein @-Zeichen schreibt.\n# Das hat keinen Einfluss auf das Programm, aber wenn der Assembler Informationen über die\n# Speicherzelle hat, schreibt er den Namen dazu und es ist leichter nachvollziehbar, was gerade passiert:\n020:    # Es reicht, einmal anzugeben, wo die nächsten Wörter / Befehle\n        # abgespeichert werden sollen (wie hier für x, E und N).\n        @ x\n     00 001 @ E # Eins gespeichert\n     00 000 @ N # Null gespeichert\n"
+ },
+ {
+  "name": "Intro_Ex3_Mastermind.as",
+  "start": 0,
+  "src": "# Alle Zeichen nach einer Raute sind \"Kommentare\" und werden vom Prozessor ignoriert.\n; Das gilt ebenso für Strichpunkte.\n#\n# Regeln:\n# Eine geheime Zahl muss geraten werden (3 Stellen, Ziffern 1-9)\n# Nach jedem Versuch wird Feedback in folgender Form gegeben:\n#       - Korrekte Ziffern an korrekter Stelle werden mit '2' markiert\n#       - Korrekte Ziffern an falscher Stelle werden mit '1' markiert\n#       - Ziffern die nicht vorkommen werden mit '0' markiert\n# Bei korrekt geratener Zahl wird Programm beendet.\n#\n# Bedienung: Die drei Ziffern EINZELN eingeben (x1, x2, x3) und jeweils mit Enter bestätigen.\n#            Erst nach der dritten Ziffer erscheint die Auswertung, z. B. 112 (Stelle für Stelle)\n#            oder 222 (= erraten). Danach beginnt der nächste Versuch.\n#\n# ################ #\n# Programm Sektion #\n# ################ #\n# Dieser Bereich des Speichers wird als Programm verwendet.\n# \n# Programm: Mastermind\n# Dreistellige Zahl raten (Ziffern 1-9)\n# Ausgabe 2: Stelle und Ziffer korrekt\n# Ausgabe 1: Ziffer kommt vor aber falsche Stelle\n# Ausgabe 0: Ziffer kommt nicht vor\n\n# A: Einlesen des Lösungsversuchs\n000: 11 101 # Einlesen x1\n     11 102 # Einlesen x2\n     11 103 # Einlesen x3\n\n# V1: Evaluation erste Variable\n     01 101 # x1 -> AK\n     03 111 # AK - s1\n     14 050 # AK=0 -> JMP 050 (Platz und Wert korrekt)\n     01 101 # x1 in AK\n     03 112 # AK - s2\n     14 053 # AK=0 -> JMP 053 (Nur Wert korrekt)\n     01 101 # x1 in AK\n     03 113 # AK - s3\n     14 053 # AK=0 -> JMP 053 (Nur Wert korrekt)\n     09 056 # JMP 056 (Nichts korrekt)\n\n# V2: Evaluation zweiter Variable\n     01 102 # x2 -> AK\n     03 112 # AK - s2\n     14 060 # AK=0 -> JMP 060 (Platz und Wert korrekt)\n     01 102 # x2 in AK\n     03 111 # AK - s1\n     14 063 # AK=0 -> JMP 063 (Nur Wert korrekt)\n     01 102 # x2 in AK\n     03 113 # AK - s3\n     14 063 # AK=0 -> JMP 063 (Nur Wert korrekt)\n     09 066 # JMP 066 (Nichts korrekt)\n\n# V3: Evaluation dritter Variable\n     01 103 # x3 -> AK\n     03 113 # AK - s3\n     14 070 # AK=0 -> JMP 070 (Platz und Wert korrekt)\n     01 103 # x3 in AK\n     03 111 # AK - s1\n     14 073 # AK=0 -> JMP 073 (Nur Wert korrekt)\n     01 103 # x3 in AK\n     03 112 # AK - s2\n     14 073 # AK=0 -> JMP 073 (Nur Wert korrekt)\n     09 076 # JMP 076 (Nichts korrekt)\n\n# D: Check Ergebnis und Ausgabe bzw. neuer Versuch\n     01 121 # b1 -> AK\n     07 002 # b1 *100\n     08 121 # AK -> b1\n     01 122 # b2 -> AK\n     07 001 # b2 *10\n     08 122 # AK -> b2\n     01 121 # b1 -> AK\n     02 122 # AK + b2\n     02 123 # AK + b3\n     08 124 # AK -> bDez\n     12 124 # bDez Ausgeben\n     03 203 # AK - 222 (Check ob richtig geraten)\n     14 047 # JMP 047 falls AK=0\n     09 000 # JMP 000 (Start nächster Versuch)\n     00 999 # HLT\n\n# Setze b1 = 2\n050: 01 202 # 2 -> AK\n     08 121 # AK -> b1\n     09 013 # JMP 013 (EVAL Var 2)\n\n# Setze b1 = 1\n     01 201 # 1 -> AK\n     08 121 # AK -> b1\n     09 013 # JMP 013 (EVAL Var 2)\n\n# Setze b1 = 0\n     01 200 # 0 -> AK\n     08 121 # AK -> b1\n     09 013 # JMP 013 (EVAL Var 2)\n\n# Setze b2 = 2\n060: 01 202 # 2 -> AK\n     08 122 # AK -> b2\n     09 023 # JMP 023 (EVAL Var 3)\n\n# Setze b2 = 1\n     01 201 # 1 -> AK\n     08 122 # AK -> b2\n     09 023 # JMP 023 (EVAL Var 3)\n\n# Setze b2 = 0\n     01 200 # 0 -> AK\n     08 122 # AK -> b2\n     09 023 # JMP 023 (EVAL Var 3)\n\n# Setze b3 = 2\n070: 01 202 # 2 -> AK\n     08 123 # AK -> b3\n     09 033 # JMP 033 (EVAL Res)\n\n# Setze b3 = 1\n     01 201 # 1 -> AK\n     08 123 # AK -> b3\n     09 033 # JMP 033 (EVAL Res)\n\n# Setze b3 = 0\n     01 200 # 0 -> AK\n     08 123 # AK -> b3\n     09 033 # JMP 033 (EVAL Res)\n\n\n# ############# #\n# Daten Sektion #\n# ############# #\n\n101:    # Es reicht, einmal anzugeben, wo die nächsten Wörter / Befehle\n        # abgespeichert werden sollen (wie hier für x1, x2 und x3).\n        @ x1\n        @ x2\n        @ x3\n        \n# Zu ratende Zahl (s1,s2,s3)\n111: 00 007 @ s1\n     00 004 @ s2\n     00 008 @ s3\n\n# Output Variablen\n121: @b1\n     @b2\n     @b3\n     @bDez\n\n# Konstanten\n200: 00 000 @0\n     00 001 @1\n     00 002 @2\n     00 222 @222\n"
+ },
+ {
+  "name": "loop.as",
+  "start": 0,
+  "src": "# Dieses Programm beginnt mit der Konstanten 20, zieht 3 ab\n# und wiederholt das, bis der Akkumulator kleiner oder gleich 0 ist.\n\n# *** Programm *** #\n# mit dem Laden von 20 beginnen\n000: 01 100\n# 3 abziehen\n     03 101\n# Ist das Ergebnis noch positiv, wieder zum Abziehen springen\n     13 001\n\n# Ergebnis (jetzt <= 0) speichern, ausgeben und beenden\n     08 102\n     12 102\n     00 000\n\n# *** Konstanten *** #\n100: 00020  @const20\n     00003  @const3\n            @result\n"
+ },
+ {
+  "name": "S_77.as",
+  "start": 0,
+  "src": "000:\n    11 500\n    11 501\n    01 500\n    04 501\n    08 502\n    12 502\n    00 000\n\n500:\n        @ x\n        @ y\n        @ z\n"
+ },
+ {
+  "name": "S_79.as",
+  "start": 8,
+  "src": "# Alle Zeichen nach einer Raute sind \"Kommentare\" und werden vom Prozessor ignoriert.\n; Das gilt ebenso für Strichpunkte.\n#\n# ################ #\n# Programm Sektion #\n# ################ #\n# Dieser Bereich des Speichers wird als Programm verwendet.\n\n# A: Einlesen von x und y\n008: 11100\n     11 101 # Leerzeichen sind gut für die Lesbarkeit (werden vom Assembler einfach ignoriert)\n\n# B: Berechnen von x^2 + y^2\n     01 100\n     04 100\n     08 102\n     01 101\n     04 101\n     02 102\n     08 102\n\n# C: Anfangswert\n     01 105\n     08 103\n     09 022\n\n# D: Weiterschalten\n     02 103\n     08 103\n\n# E: Iterationsformel\n     01 102\n     05 103\n     02 103\n     05 104\n\n# F: Test\n     03 103\n     10 020\n\n# G: Ausgabe von x, y, z und r_n\n     12 100 # x\n     12 101 # y\n     12 102 # z\n     12 103 # r_n\n\n     00 000 # HLT\n\n\n\n# ############# #\n# Daten Sektion #\n# ############# #\n# Dieser Bereich des Speichers wird für Daten verwendet. Eigentlich spricht\n# nichts dagegen, die Bereiche zu tauschen. Einzig der Befehlszähler und\n# Ihr Programm entscheiden darüber, was Daten sind und was Befehle.\n\n# *** Namen für die Variablen vergeben ***\n#\n# Man kann Speicherzellen mit einem Namen versehen, indem man ihn hinter ein @-Zeichen schreibt.\n# Das hat keinen Einfluss auf das Programm, aber wenn der Assembler Informationen über die\n# Speicherzelle hat, schreibt er den Namen dazu und es ist leichter nachvollziehbar, was gerade passiert:\n100:    # Es reicht, einmal anzugeben, wo die nächsten Wörter / Befehle\n        # abgespeichert werden sollen (wie hier für x, y, z und r_n).\n        @ x\n        @ y\n        @ z\n        @ r_n\n\n# Vordefinierte Werte, die im Programm benötigt werden\n        2   @ eine_zwei\n        317 @ eine_dreihundertsiebzehn\n"
+ },
+ {
+  "name": "A12.as",
+  "start": 10,
+  "src": "# Hinweis: Das Programm beginnt bei Adresse 010 (Startadresse 10) und hat keine Ausgabe.\n# Das Ergebnis steht nach dem Lauf im Speicher.\n\n# *** Konstanten *** #\n000:    00006\n        00002\n        03456\n        98765\n\n# *** Programm *** #\n010:    01 000\n        04 000\n        04 001\n        08 002\n        01 000\n        07 001\n        08 003\n        00 999\n"
+ },
+ {
+  "name": "A13.as",
+  "start": 0,
+  "src": "# benötigte Befehle:    00: halt\n#                       01: laden\n#                       02: addieren\n#                       03: subtrahieren\n#                       04: multiplizieren\n#                       05: dividieren\n#                       08: speichern\n#                       11: einlesen\n#                       12: ausgeben\n\n# *** Konstanten und Variablennamen *** #\n030:    @x\n        @y\n        @z\n        @r\n     002    @const2\n     008    @const8\n            @ZV1\n            @ZV2\n\n\n# *** Programm *** #\n# Einlesen\n000: 11 030 # x\n     11 031 # y\n     11 032 # z\n\n\n# Berechnen von 2*y*y\n     01 031 # y\n     04 031 # y^2\n     04 034 # 2*y^2\n     08 036 \n\n\n# Berechnen von 2y^2 + 8/z\n     01 035 # 8\n     05 032 # 8/z\n     02 036 # 2y^2 + 8/z\n     08 036\n\n\n# Berechnen von 4*x^4 = (2*x^2)^2\n     01 030 # x\n     04 030 # x^2\n     04 034 # 2*x^2\n     08 037\n     04 037 # (2*x^2)^2\n\n\n# Berechnen von r = 4*x^4 - (2y^2 + 8/z)\n     03 036\n     08 033\n\n\n# Ausgeben von r, x, y, z\n     12 033\n     12 030\n     12 031\n     12 032\n\n\n\n\n# Ende\n     00 000"
+ }
+];
+
+const WRD_MIN = -99999, WRD_MAX = 99999, ADDR_MIN = 0, ADDR_MAX = 999;
+const PAD = 8;  // Innenabstand des Editors (siehe CSS)
+const ZOOM_SIZES = [13, 15, 17, 20, 24, 28];  // Schriftgrößen im Editor in px, 13 ist der Standard
+const ZOOM_KEY = "einadress.zoom";
+let LH = 20;  // Zeilenhöhe im Editor, passend zur Schriftgröße
+const SLOW_DELAY = 1000;  // ms pro Befehl im Tempo „Langsam“
+const MAX_CONSOLE_LINES = 3000;
+const STORAGE_KEY = "einadress.v1";
+const SPLIT_KEY = "einadress.split";
+const ED_MIN = 20, ED_MAX = 75, ED_DEFAULT = 46;  // Breite des Editors in Prozent
+
+// Befehlssatz: Name, Beschreibung, Art des Operanden (Adresse oder Parameter) und erlaubter Bereich
+const ISET = [
+  { n: "HLT", d: "Programm anhalten (Operand beliebig)", param: true, min: WRD_MIN, max: WRD_MAX },
+  { n: "LAD", d: "AK ← ⟨a⟩ (Laden)" },
+  { n: "ADD", d: "AK ← AK + ⟨a⟩" },
+  { n: "SUB", d: "AK ← AK − ⟨a⟩" },
+  { n: "MUL", d: "AK ← AK · ⟨a⟩" },
+  { n: "DIV", d: "AK ← AK / ⟨a⟩ (ganzzahlig, Rest entfällt)" },
+  { n: "SHR", d: "AK um a Dezimalstellen nach rechts schieben (a = 0…5)", param: true, min: 0, max: 5 },
+  { n: "SHL", d: "AK um a Dezimalstellen nach links schieben (a = 0…5)", param: true, min: 0, max: 5 },
+  { n: "SPE", d: "⟨a⟩ ← AK (Speichern)" },
+  { n: "SPU", d: "Springe nach a (unbedingt)" },
+  { n: "SPM", d: "Springe nach a, falls AK < 0" },
+  { n: "EIN", d: "Zahl einlesen und in a ablegen" },
+  { n: "AUS", d: "⟨a⟩ ausgeben" },
+  { n: "SPP", d: "Springe nach a, falls AK > 0" },
+  { n: "SPZ", d: "Springe nach a, falls AK = 0" },
+  { n: "NOP", d: "Keine Operation" },
+].map(i => ({ param: false, min: ADDR_MIN, max: ADDR_MAX, ...i }));
+
+class MachineError extends Error {}
+const CANCEL = Symbol("cancel");
+
+/////////////
+// Helfer  //
+/////////////
+const $ = id => document.getElementById(id);
+const pad = (n, w) => String(n).padStart(w, "0");
+const fA = a => pad(a, 3);
+const fW = v => (v < 0 ? "-" : "+") + pad(Math.abs(v), 5);
+const fIns = v => v < 0 ? fW(v) : pad(Math.floor(v / 1000), 2) + " " + pad(v % 1000, 3);
+const rnd = () => WRD_MIN + Math.floor(Math.random() * (WRD_MAX - WRD_MIN + 1));
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const nextFrame = () => new Promise(r => requestAnimationFrame(() => r()));
+const isInt = s => /^[+-]?\d+$/.test(s);
+
+// schneidet auf 5 Dezimalstellen ab, Vorzeichen bleibt erhalten (wie das Python-Original)
+const trunc5 = v => (v >= 0 ? v % 100000 : -((-v) % 100000)) || 0;
+
+function span(cls, text) {
+  const s = document.createElement("span");
+  if (cls) s.className = cls;
+  s.textContent = text;
+  return s;
+}
+
+const els = {};
+for (const id of ["src", "code", "gutter", "hl", "drop", "examples", "btnZoomOut", "btnZoomIn", "btnNew", "btnOpen", "btnSave", "fileInput", "fileName", "dirty",
+  "startAddr", "btnLoad", "btnStep", "btnRun", "btnPause", "rIP", "rACC", "rSteps",
+  "rStatus", "nextIns", "memWrap", "memBody", "verbose", "btnClear", "console", "isaTable", "splitter"]) els[id] = $(id);
+
+/////////////////
+// Assembler   //
+/////////////////
+// Übersetzt den Quelltext in eine Speicherbelegung (Adresse → {value, name, line, random}).
+// Verhält sich wie der Lader in einadress.py.
+// lineAddr[i] ist die Adresse, in die das Wort aus Zeile i+1 geladen wird (null: kein Wort).
+function assemble(text) {
+  const mem = new Map(), warnings = [];
+  const lines = text.split(/\r\n|\r|\n/);
+  const lineAddr = new Array(lines.length).fill(null);
+  const fail = (line, msg) => ({ error: { line, msg }, lineAddr });
+  let next = 0;
+  for (let i = 0; i < lines.length; i++) {
+    const no = i + 1;
+    let l = lines[i].replace(/[ \t]/g, "").split("#")[0].split(";")[0];
+    if (!l) continue;
+
+    const parts = l.split(":");
+    let w;
+    if (parts.length === 1) w = parts[0];
+    else if (parts.length > 2) return fail(no, "Zu viele Doppelpunkte.");
+    else if (parts[0] === "") return fail(no, "Doppelpunkt, aber keine Adresse davor.");
+    else {
+      if (!isInt(parts[0])) return fail(no, `Die Adresse „${parts[0]}“ ist keine Zahl.`);
+      next = parseInt(parts[0], 10);
+      if (next < ADDR_MIN || next > ADDR_MAX) return fail(no, `Die Adresse ${next} liegt außerhalb von 000…999.`);
+      if (parts[1] === "") continue;
+      w = parts[1];
+    }
+
+    const at = w.split("@");
+    if (at.length > 2) return fail(no, "Zu viele @-Zeichen.");
+    const label = at.length === 2 && at[1] !== "" ? at[1] : null;
+    w = at[0];
+
+    let value, random = false;
+    if (w === "") { value = rnd(); random = true; }
+    else {
+      if (!isInt(w)) return fail(no, `„${w}“ ist kein gültiges Wort (nur Ziffern und ggf. Vorzeichen erlaubt).`);
+      value = parseInt(w, 10);
+      if (value < WRD_MIN || value > WRD_MAX) return fail(no, `${value} passt nicht in eine Speicherzelle (−99999…99999).`);
+    }
+    if (next > ADDR_MAX) return fail(no, "Speicherende überschritten: Adresse 1000 gibt es nicht.");
+
+    const prev = mem.get(next);
+    if (prev) warnings.push(`Warnung: Adresse ${fA(next)} wird zweimal belegt, es gilt der spätere Wert.`);
+    mem.set(next, { value, name: label ?? prev?.name ?? null, line: no, random });
+    lineAddr[i] = next;
+    next++;
+  }
+  return { mem, warnings, lineAddr };
+}
+
+/////////////////
+// Maschine    //
+/////////////////
+const M = { mem: new Map(), ip: 0, acc: 0, accRandom: false, steps: 0, status: "empty", lastWrite: null };
+let running = false, busy = false, pendingInput = null, dirty = false, runToken = 0, errorLine = null;
+let warnQueue = [];
+
+const cellName = a => M.mem.get(a)?.name;
+const cell = a => fA(a) + (cellName(a) ? ` (${cellName(a)})` : "");
+const warn = msg => warnQueue.push(msg);
+function flushWarn() { for (const w of warnQueue) cline("warn", "⚠ " + w); warnQueue = []; }
+
+function read(a, fetch) {
+  let c = M.mem.get(a);
+  if (!c) { c = { value: rnd(), name: null, line: null, random: true }; M.mem.set(a, c); }
+  if (c.random) warn(fetch
+    ? `Befehl aus Zelle ${cell(a)} geholt, die keinen definierten Inhalt hat (Zufallswert ${fW(c.value)}).`
+    : `Zelle ${cell(a)} hat noch keinen definierten Wert, gelesen wird ein Zufallswert (${fW(c.value)}).`);
+  return c.value;
+}
+
+function write(a, v) {
+  const c = M.mem.get(a);
+  if (c) { c.value = v; c.random = false; }
+  else M.mem.set(a, { value: v, name: null, line: null, random: false });
+  M.lastWrite = a;
+}
+
+function setAcc(v) { M.acc = v; M.accRandom = false; }
+
+function bound(v) {
+  const r = trunc5(v);
+  if (v > WRD_MAX || v < WRD_MIN) warn(`Überlauf: ${v} hat mehr als 5 Stellen, im AK bleibt ${fW(r)}.`);
+  return r;
+}
+
+function arith(a, sym, f) {
+  const v = read(a), p = M.acc;
+  setAcc(bound(f(p, v)));
+  return { t: `AK = ${fW(p)} ${sym} ${fW(v)} = ${fW(M.acc)}` };
+}
+
+function cond(a, take, yes, no) {
+  return take
+    ? { t: `AK = ${fW(M.acc)} ${yes} → Sprung nach ${fA(a)}`, j: a }
+    : { t: `AK = ${fW(M.acc)} ${no} → kein Sprung` };
+}
+
+// Jede Funktion führt einen Befehl mit Operand a aus und liefert {t: Protokolltext, j: Sprungziel}
+const EXEC = [
+  /* 00 HLT */ () => ({ t: "Programm angehalten." }),
+  /* 01 LAD */ a => { const v = read(a); setAcc(v); return { t: `AK ← ${cell(a)} = ${fW(v)}` }; },
+  /* 02 ADD */ a => arith(a, "+", (x, y) => x + y),
+  /* 03 SUB */ a => arith(a, "−", (x, y) => x - y),
+  /* 04 MUL */ a => arith(a, "·", (x, y) => x * y),
+  /* 05 DIV */ a => {
+    const v = read(a);
+    if (v === 0) throw new MachineError(`Division durch null: ${cell(a)} enthält 0.`);
+    const p = M.acc;
+    setAcc(bound(Math.trunc(p / v)));
+    return { t: `AK = ${fW(p)} / ${fW(v)} = ${fW(M.acc)}` };
+  },
+  /* 06 SHR */ a => {
+    const p = M.acc;
+    setAcc(Math.trunc(p / 10 ** a) || 0);
+    return { t: `AK = ${fW(p)} um ${a} Stelle(n) nach rechts = ${fW(M.acc)}` };
+  },
+  /* 07 SHL */ a => {
+    const p = M.acc, full = p * 10 ** a;
+    setAcc(trunc5(full));
+    return { t: `AK = ${fW(p)} um ${a} Stelle(n) nach links = ${fW(M.acc)}` + (M.acc !== full ? " (vordere Stellen fallen heraus)" : "") };
+  },
+  /* 08 SPE */ a => { write(a, M.acc); return { t: `${cell(a)} ← AK = ${fW(M.acc)}` }; },
+  /* 09 SPU */ a => ({ t: `Sprung nach ${fA(a)}`, j: a }),
+  /* 10 SPM */ a => cond(a, M.acc < 0, "< 0", "≥ 0"),
+  /* 11 EIN */ async a => { const v = await askInput(a); write(a, v); return { t: `${cell(a)} ← Eingabe ${fW(v)}` }; },
+  /* 12 AUS */ a => { const v = read(a); output(v, a); return { t: `Ausgabe von ${cell(a)} = ${fW(v)}` }; },
+  /* 13 SPP */ a => cond(a, M.acc > 0, "> 0", "≤ 0"),
+  /* 14 SPZ */ a => cond(a, M.acc === 0, "= 0", "≠ 0"),
+  /* 15 NOP */ () => ({ t: "nichts zu tun" }),
+];
+
+// Holt den Befehl an der Adresse im BZ, dekodiert und führt ihn aus
+async function step() {
+  const ip = M.ip;
+  if (ip < ADDR_MIN || ip > ADDR_MAX)
+    throw new MachineError(`Der Befehlszähler steht auf ${ip}. Diese Adresse gibt es nicht. Fehlt ein HLT?`);
+  const ins = read(ip, true);
+  if (ins < 0) throw new MachineError(`An Adresse ${fA(ip)} steht ${fW(ins)}. Ein negatives Wort ist kein gültiger Befehl.`);
+  const a = ins % 1000, op = Math.floor(ins / 1000), I = ISET[op];
+  if (!I) throw new MachineError(`Unbekannter Befehlscode ${pad(op, 2)} im Wort ${fIns(ins)} an Adresse ${fA(ip)}.`);
+  if (a < I.min || a > I.max) throw new MachineError(`${I.n}: Operand ${a} liegt außerhalb von ${I.min}…${I.max}.`);
+
+  M.lastWrite = null;
+  const r = await EXEC[op](a);
+  M.steps++;
+  logIns(ip, ins, op, a, r.t);
+  flushWarn();
+  if (op === 0) { M.status = "halted"; return; }
+  M.ip = r.j ?? ip + 1;
+}
+
+async function doStep() {
+  busy = true;
+  try { await step(); }
+  catch (e) {
+    if (e === CANCEL) return false;
+    if (!(e instanceof MachineError)) throw e;
+    flushWarn();
+    M.status = "error";
+    cline("err", "Fehler: " + e.message);
+    return false;
+  }
+  finally { busy = false; }
+  if (M.status === "halted") { cline("info", `Programm beendet nach ${M.steps} Befehlen.`); return false; }
+  return true;
+}
+
+// lädt neu, falls kein lauffähiges Programm im Speicher steht
+function prepare() {
+  if (M.status === "ready" && !(dirty && M.steps === 0)) return true;
+  return load();
+}
+
+async function stepOnce() {
+  if (running || busy || !prepare()) return;
+  render();
+  await doStep();
+  render(true);
+}
+
+async function run() {
+  if (running || busy || !prepare()) return;
+  running = true;
+  const token = ++runToken;
+  render(true);
+  let n = 0;
+  while (running && token === runToken) {
+    const cont = await doStep();
+    if (!cont || token !== runToken) break;
+    if (isFast()) { if (++n % 500 === 0) { render(true); await nextFrame(); } }
+    else { render(true); await sleep(SLOW_DELAY); }
+  }
+  if (token === runToken) { running = false; render(true); }
+}
+
+const isFast = () => document.querySelector('input[name="speed"]:checked').value === "fast";
+
+function pause() { running = false; render(); }
+
+function cancelInput() {
+  if (pendingInput) { pendingInput.cancel(); pendingInput = null; }
+  busy = false;
+}
+
+function load() {
+  cancelInput();
+  running = false;
+  runToken++;
+  warnQueue = [];
+  els.console.textContent = "";
+  stickToBottom = true;
+  errorLine = null;
+  const res = assemble(els.src.value);
+  dirty = false;
+  if (res.error) {
+    errorLine = res.error.line;
+    Object.assign(M, { mem: new Map(), status: "empty", steps: 0, lastWrite: null });
+    cline("err", `Syntaxfehler in der rot markierten Zeile: ${res.error.msg}`);
+    render();
+    scrollEditorTo(errorLine);
+    return false;
+  }
+  const start = readStartAddr();
+  if (start === null) {
+    Object.assign(M, { mem: new Map(), status: "empty", steps: 0, lastWrite: null });
+    cline("err", "Die Startadresse muss eine Zahl zwischen 0 und 999 sein.");
+    render();
+    return false;
+  }
+  Object.assign(M, { mem: res.mem, ip: start, acc: rnd(), accRandom: true, steps: 0, status: "ready", lastWrite: null });
+  for (const w of res.warnings) cline("warn", "⚠ " + w);
+  cline("info", `Programm geladen: ${res.mem.size} Speicherzellen belegt, Start bei Adresse ${fA(start)}.`);
+  render(true);
+  return true;
+}
+
+function readStartAddr() {
+  const s = els.startAddr.value.trim();
+  if (!isInt(s)) return null;
+  const v = parseInt(s, 10);
+  return v < ADDR_MIN || v > ADDR_MAX ? null : v;
+}
+
+/////////////////////////
+// Ein- und Ausgabe    //
+/////////////////////////
+// Die Konsole bleibt unten, solange man nicht selbst nach oben scrollt.
+let stickToBottom = true;
+
+function scrollConsoleDown() {
+  stickToBottom = true;
+  els.console.scrollTop = els.console.scrollHeight;
+}
+
+// hängt eine Zeile aus Texten und Elementen an und scrollt erst danach, wenn sie vollständig ist
+function cline(cls, ...parts) {
+  const d = document.createElement("div");
+  d.className = "ln " + cls;
+  d.append(...parts);
+  const c = els.console;
+  c.appendChild(d);
+  while (c.childElementCount > MAX_CONSOLE_LINES) c.firstElementChild.remove();
+  if (stickToBottom) c.scrollTop = c.scrollHeight;
+  return d;
+}
+
+function logIns(ip, ins, op, a, text) {
+  if (!els.verbose.checked) return;
+  const I = ISET[op];
+  cline("log", span("addr", fA(ip)), "  ", fIns(ins), "  ", span("op", I.n), " ",
+    span(I.param ? "" : "addr", I.param ? String(a) : fA(a)), "   ", text);
+}
+
+function output(v, a) {
+  cline("out", "Ausgabe: " + fW(v), span("dim", "   aus " + cell(a)));
+}
+
+function askInput(a) {
+  return new Promise((resolve, reject) => {
+    const inp = document.createElement("input");
+    Object.assign(inp, { type: "text", inputMode: "numeric", autocomplete: "off", spellcheck: false });
+    inp.setAttribute("aria-label", `Zahl für Adresse ${fA(a)} eingeben`);
+    const hint = span("hint", "");
+    const d = cline("inp", `Eingabe für ${cell(a)}: `, inp, hint);
+    scrollConsoleDown();
+    pendingInput = { cancel: () => { inp.disabled = true; d.classList.add("cancelled"); reject(CANCEL); } };
+    inp.addEventListener("keydown", e => {
+      if (e.key !== "Enter") return;
+      e.preventDefault();
+      e.stopPropagation();
+      const s = inp.value.trim();
+      if (!isInt(s)) { hint.textContent = "  Bitte eine ganze Zahl eingeben."; return; }
+      const v = parseInt(s, 10);
+      if (v < WRD_MIN || v > WRD_MAX) { hint.textContent = `  Die Zahl muss zwischen ${WRD_MIN} und ${WRD_MAX} liegen.`; return; }
+      pendingInput = null;
+      inp.replaceWith(span("val", fW(v)));
+      hint.remove();
+      resolve(v);
+    });
+    render();
+    setTimeout(() => inp.focus({ preventScroll: true }), 0);
+  });
+}
+
+////////////////
+// Anzeige    //
+////////////////
+function disasmHTML(v) {
+  if (v < 0) return `<span class="dim">${fIns(v)} (kein Befehl)</span>`;
+  const op = Math.floor(v / 1000), a = v % 1000, I = ISET[op];
+  const raw = `<span class="dim">${fIns(v)}</span>`;
+  if (!I) return `${raw} <span class="dim">unbekannter Code</span>`;
+  if (I.param) return `${raw} <span class="op">${I.n}</span> ${a}`;
+  const nm = cellName(a);
+  return `${raw} <span class="op">${I.n}</span> <span class="addr">${fA(a)}</span>${nm ? ` <span class="dim">(${esc(nm)})</span>` : ""}`;
+}
+
+function statusInfo() {
+  switch (M.status) {
+    case "empty": return ["nicht geladen", ""];
+    case "halted": return ["beendet", "st-halted"];
+    case "error": return ["Fehler", "st-error"];
+  }
+  if (pendingInput) return ["wartet auf Eingabe", "st-input"];
+  if (running) return ["läuft", "st-running"];
+  return [M.steps === 0 ? "bereit" : "pausiert", ""];
+}
+
+function render(follow) {
+  const live = M.status !== "empty";
+  els.rIP.textContent = live ? fA(M.ip) : "\u00a0";
+  els.rACC.innerHTML = live ? fW(M.acc) + (M.accRandom ? '<span class="tag">zufällig</span>' : "") : "\u00a0";
+  els.rSteps.textContent = M.steps;
+  const [st, stCls] = statusInfo();
+  els.rStatus.textContent = st;
+  els.rStatus.className = "rv " + stCls;
+
+  // Knöpfe
+  els.btnStep.disabled = running || busy;
+  els.btnRun.disabled = running || busy;
+  els.btnPause.disabled = !running;
+  els.btnRun.textContent = M.status === "ready" && M.steps > 0 ? "Weiter" : M.status === "halted" || M.status === "error" ? "Neu starten" : "Start";
+  els.dirty.hidden = !dirty;
+
+  renderNext();
+  renderMem(follow);
+  renderEditorMarks(follow);
+}
+
+function renderNext() {
+  const n = els.nextIns;
+  if (M.status === "empty") { n.innerHTML = '<span class="lbl">Kein Programm geladen.</span>'; return; }
+  if (M.status === "halted") { n.innerHTML = '<span class="lbl">Programm mit HLT beendet. „Neu starten“ lädt es erneut.</span>'; return; }
+  if (M.status === "error") { n.innerHTML = '<span class="lbl">Ausführung abgebrochen, siehe Meldung unten.</span>'; return; }
+  if (M.ip < ADDR_MIN || M.ip > ADDR_MAX) { n.innerHTML = `<span class="lbl">BZ zeigt auf ${M.ip}, außerhalb des Speichers.</span>`; return; }
+  const c = M.mem.get(M.ip);
+  if (!c) { n.innerHTML = `<span class="lbl">Nächster Befehl:</span> Zelle <span class="addr">${fA(M.ip)}</span> ist leer (Zufallswert).`; return; }
+  const I = c.value >= 0 ? ISET[Math.floor(c.value / 1000)] : null;
+  n.innerHTML = `<span class="lbl">Nächster Befehl:</span> <span class="addr">${fA(M.ip)}</span>: ${disasmHTML(c.value)}` +
+    (I ? ` <span class="lbl desc">${esc(I.d)}</span>` : "");
+}
+
+function renderMem(follow) {
+  const addrs = [...M.mem.keys()].sort((x, y) => x - y);
+  if (!addrs.length) {
+    els.memBody.innerHTML = '<tr class="empty"><td colspan="4">Der Speicher ist leer. Programm schreiben und „Laden“ drücken.</td></tr>';
+    return;
+  }
+  const showCur = M.status === "ready" || M.status === "error";
+  let h = "";
+  for (const a of addrs) {
+    const c = M.mem.get(a);
+    const cls = (showCur && a === M.ip ? "cur" : "") + (a === M.lastWrite ? " wr" : "");
+    h += `<tr class="${cls}"><td class="addr">${fA(a)}</td><td>${esc(c.name ?? "")}</td>` +
+      `<td class="val">${fW(c.value)}${c.random ? '<span class="tag">zufällig</span>' : ""}</td>` +
+      `<td>${disasmHTML(c.value)}</td></tr>`;
+  }
+  els.memBody.innerHTML = h;
+  if (follow) {
+    const row = els.memBody.querySelector("tr.cur");
+    if (row) {
+      const w = els.memWrap, head = w.querySelector("thead").offsetHeight;
+      const top = row.offsetTop, bottom = top + row.offsetHeight;
+      if (top < w.scrollTop + head) w.scrollTop = top - head - 2 * row.offsetHeight;
+      else if (bottom > w.scrollTop + w.clientHeight) w.scrollTop = bottom - w.clientHeight + 2 * row.offsetHeight;
+    }
+  }
+}
+
+// Editor: Adressspalte (in welche Speicherzelle landet das Wort dieser Zeile),
+// Syntax-Highlighting, Markierung der aktuellen Zeile bzw. der Fehlerzeile
+let editorText = null, markedLine = null;
+
+// Zeile: [Adresse:] [Wort] [@Name] [# Kommentar]
+const LINE_RE = /^(\s*)(?:(\d+)(\s*:))?(\s*)([+-]?(?:\d[ \t]*)*\d)?(\s*)(@.*)?(.*)$/;
+
+function highlightLine(line) {
+  const ci = line.search(/[#;]/);
+  const code = ci < 0 ? line : line.slice(0, ci);
+  const tok = (cls, s) => s ? `<span class="${cls}">${esc(s)}</span>` : "";
+  const [, sp1, addr, colon, sp2, word, sp3, label, rest] = code.match(LINE_RE);
+  let h = esc(sp1) + tok("t-addr", addr && addr + colon) + esc(sp2);
+  const ins = word && word.match(/^(\d\d)([ \t]+)(\d\d\d)$/);
+  if (ins) h += tok(ISET[+ins[1]] ? "t-op" : "t-err", ins[1]) + esc(ins[2]) + tok("t-arg", ins[3]);
+  else h += tok("t-num", word);
+  h += esc(sp3) + tok("t-lbl", label) + tok(rest.trim() ? "t-err" : "", rest);
+  return h + (ci < 0 ? "" : tok("t-com", line.slice(ci)));
+}
+
+function syncEditor() {
+  const text = els.src.value, ta = els.src;
+  let relayout = false;
+  if (text !== editorText) {
+    els.gutter.innerHTML = assemble(text).lineAddr.map(a => `<div>${a === null ? "" : fA(a)}</div>`).join("");
+    els.code.innerHTML = text.split("\n").map(l => `<div>${highlightLine(l)}</div>`).join("");
+    editorText = text;
+    markedLine = null;
+    relayout = true;
+  }
+  // gleiche Breite wie die Textfläche (ohne Scrollbalken), damit beide an derselben Stelle umbrechen
+  if (els.code.offsetWidth !== ta.clientWidth) {
+    els.code.style.width = ta.clientWidth + "px";
+    relayout = true;
+  }
+  if (relayout) fitGutter();
+  els.gutter.scrollTop = ta.scrollTop;
+  els.code.style.transform = `translateY(${-ta.scrollTop}px)`;
+}
+
+// Adressspalte an umgebrochene Zeilen anpassen (erst alle Höhen messen, dann setzen)
+function fitGutter() {
+  const heights = [...els.code.children].map(el => el.offsetHeight);
+  [...els.gutter.children].forEach((g, i) => { g.style.height = (heights[i] || LH) + "px"; });
+}
+
+// Lage einer Quelltextzeile (1-basiert) im Editor, umgebrochene Zeilen eingeschlossen
+function lineBox(n) {
+  const el = els.code.children[n - 1];
+  return el ? { top: el.offsetTop, height: el.offsetHeight } : { top: PAD + (n - 1) * LH, height: LH };
+}
+
+function currentLine() {
+  if (errorLine) return { n: errorLine, err: true };
+  if (dirty || M.status === "empty") return null;
+  const line = M.mem.get(M.ip)?.line;
+  return line ? { n: line, err: false } : null;
+}
+
+function renderEditorMarks(follow) {
+  syncEditor();
+  const cur = currentLine();
+  if (markedLine) markedLine.className = "";
+  markedLine = cur ? els.gutter.children[cur.n - 1] : null;
+  if (markedLine) markedLine.className = cur.err ? "err" : "cur";
+  placeHl(cur);
+  if (follow && cur) scrollEditorTo(cur.n, true);
+}
+
+function placeHl(cur = currentLine()) {
+  if (!cur) { els.hl.hidden = true; return; }
+  els.hl.hidden = false;
+  els.hl.className = "hl" + (cur.err ? " err" : "");
+  const b = lineBox(cur.n);
+  els.hl.style.height = b.height + "px";
+  els.hl.style.transform = `translateY(${b.top - els.src.scrollTop}px)`;
+}
+
+function scrollEditorTo(line, onlyIfHidden) {
+  const ta = els.src, { top: y, height } = lineBox(line);
+  if (onlyIfHidden && y >= ta.scrollTop && y + height <= ta.scrollTop + ta.clientHeight) return;
+  ta.scrollTop = Math.max(0, y - ta.clientHeight / 3);
+  syncEditor();
+  placeHl();
+}
+
+//////////////////////////////
+// Dateien und Beispiele    //
+//////////////////////////////
+let fileName = "", pristine = "";
+
+function setSource(text, name, start) {
+  els.src.value = text;
+  fileName = name;
+  pristine = text;
+  els.fileName.textContent = name ? "· " + name : "";
+  els.startAddr.value = start;
+  els.src.scrollTop = 0;
+  save();
+  load();
+}
+
+function mayReplace() {
+  const cur = els.src.value;
+  return cur === pristine || !cur.trim() || confirm("Der aktuelle Quelltext wurde verändert und geht verloren. Trotzdem ersetzen?");
+}
+
+let saveTimer = null;
+function save() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ src: els.src.value, name: fileName, pristine, start: els.startAddr.value }));
+    } catch (e) { /* Speichern nicht möglich, egal */ }
+  }, 300);
+}
+
+function restore() {
+  try {
+    const s = JSON.parse(localStorage.getItem(STORAGE_KEY));
+    if (s && typeof s.src === "string") return s;
+  } catch (e) { /* nichts gespeichert */ }
+  return null;
+}
+
+/////////////////
+// Ereignisse  //
+/////////////////
+els.btnLoad.onclick = load;
+els.btnStep.onclick = stepOnce;
+els.btnRun.onclick = run;
+els.btnPause.onclick = pause;
+els.btnClear.onclick = () => { els.console.textContent = ""; stickToBottom = true; };
+els.console.addEventListener("scroll", () => {
+  const c = els.console;
+  stickToBottom = c.scrollHeight - c.scrollTop - c.clientHeight < 30;
+});
+els.btnOpen.onclick = () => els.fileInput.click();
+
+const NEW_PROGRAM = `# *** Programm (ab Speicherzelle 000) *** #
+000:
+        00 000 # HLT
+
+# *** Daten *** #
+100:
+`;
+
+els.btnNew.onclick = () => {
+  if (!mayReplace()) return;
+  setSource(NEW_PROGRAM, "", 0);
+  els.src.focus();
+  els.src.setSelectionRange(NEW_PROGRAM.indexOf("00 000"), NEW_PROGRAM.indexOf("00 000"));
+};
+
+// liest UTF-8, fällt bei alten Windows-Dateien (Umlaute in ANSI) auf Windows-1252 zurück
+async function readText(f) {
+  const buf = await f.arrayBuffer();
+  const t = new TextDecoder("utf-8").decode(buf);
+  return t.includes("�") ? new TextDecoder("windows-1252").decode(buf) : t;
+}
+
+async function openFile(f) {
+  if (!f || !mayReplace()) return;
+  setSource(await readText(f), f.name, 0);
+}
+
+els.fileInput.onchange = () => {
+  const f = els.fileInput.files[0];
+  els.fileInput.value = "";
+  openFile(f);
+};
+
+// Drag & Drop: Datei irgendwo auf die Seite ziehen
+let dragDepth = 0;
+const hasFiles = e => [...(e.dataTransfer?.types ?? [])].includes("Files");
+document.addEventListener("dragenter", e => {
+  if (!hasFiles(e)) return;
+  e.preventDefault();
+  dragDepth++;
+  els.drop.hidden = false;
+});
+document.addEventListener("dragover", e => { if (hasFiles(e)) e.preventDefault(); });
+document.addEventListener("dragleave", e => {
+  if (!hasFiles(e)) return;
+  if (--dragDepth <= 0) { dragDepth = 0; els.drop.hidden = true; }
+});
+document.addEventListener("drop", e => {
+  if (!hasFiles(e)) return;
+  e.preventDefault();
+  dragDepth = 0;
+  els.drop.hidden = true;
+  openFile(e.dataTransfer.files[0]);
+});
+
+els.btnSave.onclick = () => {
+  const blob = new Blob([els.src.value], { type: "text/plain;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = fileName || "programm.as";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  pristine = els.src.value;
+  save();
+};
+
+els.examples.onchange = () => {
+  const ex = EXAMPLES[+els.examples.value];
+  els.examples.value = "";
+  if (!ex || !mayReplace()) return;
+  setSource(ex.src, ex.name, ex.start);
+};
+
+els.src.addEventListener("input", () => {
+  dirty = true;
+  errorLine = null;
+  save();
+  render();
+});
+els.src.addEventListener("scroll", () => { syncEditor(); placeHl(); });
+els.src.addEventListener("keydown", e => {
+  if (e.key === "Tab" && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    e.preventDefault();
+    if (!document.execCommand("insertText", false, "    ")) els.src.setRangeText("    ", els.src.selectionStart, els.src.selectionEnd, "end");
+  }
+});
+
+els.startAddr.addEventListener("change", () => {
+  save();
+  const v = readStartAddr();
+  if (v !== null && M.status === "ready" && M.steps === 0 && !running) { M.ip = v; render(true); }
+});
+
+els.verbose.addEventListener("change", scrollConsoleDown);
+
+document.addEventListener("keydown", e => {
+  if (e.key === "F10") { e.preventDefault(); stepOnce(); }
+  else if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); run(); }
+});
+// Fenster- oder Breitenänderung: Zeilen brechen neu um
+new ResizeObserver(() => { syncEditor(); placeHl(); }).observe(els.src);
+
+// Trennlinie zwischen Editor und Maschine: ziehen, Pfeiltasten, Doppelklick setzt zurück
+const gridEl = document.querySelector("main.grid");
+let editorWidth = ED_DEFAULT;
+
+function setEditorWidth(pct, persist = true) {
+  // Grenzen in Pixeln: Editor mindestens 300 px, rechts mindestens 460 px
+  const cs = getComputedStyle(gridEl);
+  const cw = gridEl.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+  const lo = Math.max(ED_MIN, 300 / cw * 100);
+  const hi = Math.max(lo, Math.min(ED_MAX, (cw - 12 - 460) / cw * 100));
+  editorWidth = Math.min(hi, Math.max(lo, pct));
+  gridEl.style.setProperty("--ed-w", editorWidth + "%");
+  els.splitter.setAttribute("aria-valuenow", Math.round(editorWidth));
+  if (persist) try { localStorage.setItem(SPLIT_KEY, String(editorWidth)); } catch (e) { /* egal */ }
+}
+
+let splitDragging = false;
+els.splitter.addEventListener("pointerdown", e => {
+  e.preventDefault();
+  splitDragging = true;
+  try { els.splitter.setPointerCapture(e.pointerId); } catch (err) { /* window-Ereignisse reichen auch */ }
+  els.splitter.classList.add("active");
+  document.body.classList.add("resizing");
+});
+window.addEventListener("pointermove", e => {
+  if (!splitDragging) return;
+  const r = gridEl.getBoundingClientRect(), cs = getComputedStyle(gridEl);
+  const left = r.left + parseFloat(cs.paddingLeft);
+  const width = r.width - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+  // Linie bleibt unter dem Mauszeiger (halbe Breite der Trennlinie abziehen)
+  setEditorWidth((e.clientX - left - els.splitter.offsetWidth / 2) / width * 100, false);
+});
+const endSplitDrag = () => {
+  if (!splitDragging) return;
+  splitDragging = false;
+  els.splitter.classList.remove("active");
+  document.body.classList.remove("resizing");
+  setEditorWidth(editorWidth);
+};
+window.addEventListener("pointerup", endSplitDrag);
+window.addEventListener("pointercancel", endSplitDrag);
+els.splitter.addEventListener("dblclick", () => setEditorWidth(ED_DEFAULT));
+els.splitter.addEventListener("keydown", e => {
+  if (e.key === "ArrowLeft") { e.preventDefault(); setEditorWidth(editorWidth - 2); }
+  else if (e.key === "ArrowRight") { e.preventDefault(); setEditorWidth(editorWidth + 2); }
+});
+
+try {
+  const w = parseFloat(localStorage.getItem(SPLIT_KEY));
+  setEditorWidth(Number.isFinite(w) ? w : ED_DEFAULT, false);
+} catch (e) { setEditorWidth(ED_DEFAULT, false); }
+
+// Schriftgröße im Editor (A− / A+); Zeilenhöhe wächst im selben Verhältnis mit
+const editorEl = document.querySelector(".editor");
+let zoomIndex = 0;
+
+function setZoom(i, persist = true) {
+  zoomIndex = Math.max(0, Math.min(ZOOM_SIZES.length - 1, i));
+  const fs = ZOOM_SIZES[zoomIndex];
+  LH = Math.round(fs*20/13);
+  editorEl.style.setProperty("--ed-fs", fs + "px");
+  editorEl.style.setProperty("--ed-lh", LH + "px");
+  els.btnZoomOut.disabled = zoomIndex === 0;
+  els.btnZoomIn.disabled = zoomIndex === ZOOM_SIZES.length - 1;
+  fitGutter();
+  syncEditor();
+  placeHl();
+  if (persist) try { localStorage.setItem(ZOOM_KEY, String(fs)); } catch (e) { /* egal */ }
+}
+els.btnZoomOut.onclick = () => setZoom(zoomIndex - 1);
+els.btnZoomIn.onclick = () => setZoom(zoomIndex + 1);
+
+try {
+  const i = ZOOM_SIZES.indexOf(Number(localStorage.getItem(ZOOM_KEY)));
+  setZoom(Math.max(0, i), false);
+} catch (e) { setZoom(0, false); }
+
+////////////////
+// Start      //
+////////////////
+EXAMPLES.forEach((ex, i) => els.examples.add(new Option(ex.name + (ex.start ? ` (Start ${fA(ex.start)})` : ""), i)));
+els.isaTable.innerHTML = ISET.map((I, op) =>
+  `<tr><td><code>${pad(op, 2)}</code></td><td><b>${I.n}</b></td><td>${esc(I.d)}</td></tr>`).join("");
+
+const saved = restore();
+if (saved) {
+  els.src.value = saved.src;
+  fileName = saved.name || "";
+  pristine = saved.pristine ?? saved.src;
+  els.fileName.textContent = fileName ? "· " + fileName : "";
+  els.startAddr.value = saved.start ?? 0;
+  load();
+} else if (EXAMPLES.length) {
+  setSource(EXAMPLES[0].src, EXAMPLES[0].name, EXAMPLES[0].start);
+} else {
+  render();
+}
+</script>
+</body>
+</html>
