@@ -179,6 +179,7 @@ code { font-size: 12.5px; background: var(--btn); padding: 0 4px; border-radius:
 .st-error { color: var(--err); } .st-input { color: var(--out); }
 .next { padding: 4px 12px 10px; font-size: 13px; min-height: 2.2em; border-bottom: 1px solid var(--border); overflow-wrap: anywhere; }
 .next .lbl { font-family: system-ui, sans-serif; color: var(--muted); }
+.next .desc { margin-left: 10px; }
 .mem { flex: 1; min-height: 0; overflow: auto; position: relative; }
 .mem table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .mem th {
@@ -228,7 +229,7 @@ code { font-size: 12.5px; background: var(--btn); padding: 0 4px; border-radius:
 <header class="top">
   <div>
     <h1>Einadressmaschine</h1>
-    <div class="sub">Simulator zur Vorlesung Grundlagen der Informationstechnik</div>
+    <div class="sub">Simulator zur Vorlesung Grundlagen der Informationstechnik, Prof. Hanik</div>
   </div>
   <div class="tools">
     <select id="examples" aria-label="Beispielprogramm"><option value="">Beispielprogramm laden …</option></select>
@@ -244,10 +245,10 @@ code { font-size: 12.5px; background: var(--btn); padding: 0 4px; border-radius:
       <span class="spacer"></span>
       <span class="zoom" role="group" aria-label="Schriftgröße im Editor">
         <button id="btnZoomOut" title="Schrift im Editor verkleinern">A−</button>
-        <button id="btnZoomIn" title="Schrift im Editor vergrößern (z. B. für den Beamer)">A+</button>
+        <button id="btnZoomIn" title="Schrift im Editor vergrößern">A+</button>
       </span>
       <button id="btnNew" title="Mit einem leeren Programm beginnen">Neu</button>
-      <button id="btnOpen" title="Eine .as-Datei öffnen – oder die Datei einfach in den Editor ziehen">Datei öffnen …</button>
+      <button id="btnOpen" title="Eine .as-Datei öffnen oder die Datei einfach in den Editor ziehen">Datei öffnen …</button>
       <button id="btnSave" title="Programm als .as-Datei herunterladen">Speichern</button>
     </div>
     <div class="drop" id="drop" hidden>.as-Datei hier ablegen</div>
@@ -267,13 +268,13 @@ code { font-size: 12.5px; background: var(--btn); padding: 0 4px; border-radius:
           <li>Jede Zeile: <code>[Adresse:] [Wort] [@Name]</code>. Alles nach <code>#</code> oder <code>;</code> ist Kommentar.</li>
           <li>Ein Wort ist eine Dezimalzahl von −99999 bis 99999. Ein Befehl besteht aus 2 Ziffern Befehlscode und 3 Ziffern Adresse, z.&nbsp;B. <code>01 040</code>. Leerzeichen werden ignoriert.</li>
           <li>Ohne Adressangabe kommt jedes Wort in die nächste Speicherzelle (beginnend bei 000).
-            Die Spalte links im Editor zeigt, in welche Speicherzelle das Wort einer Zeile geladen wird – es sind keine Zeilennummern.</li>
-          <li>Eine Zelle nur mit <code>@Name</code> bekommt einen Namen, aber keinen Wert – dort steht dann ein Zufallswert.</li>
+            Die Spalte links im Editor zeigt, in welche Speicherzelle das Wort einer Zeile geladen wird. Es sind keine Zeilennummern.</li>
+          <li>Eine Zelle nur mit <code>@Name</code> bekommt einen Namen, aber keinen Wert. Dort steht dann ein Zufallswert.</li>
           <li>Die <b>Startadresse</b> legt fest, wo der Befehlszähler beginnt (Standard 000).</li>
           <li>Tastatur: <code>Strg</code>+<code>Enter</code> Start/Weiter, <code>F10</code> Einzelschritt.</li>
           <li>Eigene <code>.as</code>-Dateien über „Datei öffnen …“ laden oder einfach in den Editor ziehen.</li>
           <li>Die Trennlinie zwischen Editor und Maschine lässt sich mit der Maus verschieben (Doppelklick: zurücksetzen).</li>
-          <li><b>A−</b> / <b>A+</b> ändern die Schriftgröße im Editor, z. B. für den Beamer. Die ganze Seite vergrößert der Browser mit <code>Strg</code>/<code>⌘</code> + <code>+</code>.</li>
+          <li><b>A−</b> / <b>A+</b> ändern die Schriftgröße im Editor. Die ganze Seite vergrößert der Browser mit <code>Strg</code>/<code>⌘</code> + <code>+</code>.</li>
         </ul>
         <table id="isaTable"></table>
       </div>
@@ -281,7 +282,7 @@ code { font-size: 12.5px; background: var(--btn); padding: 0 4px; border-radius:
   </section>
 
   <div class="splitter" id="splitter" role="separator" aria-orientation="vertical" aria-label="Breite des Editors"
-    aria-valuemin="20" aria-valuemax="75" tabindex="0" title="Ziehen, um die Breite zu ändern – Doppelklick setzt zurück"></div>
+    aria-valuemin="20" aria-valuemax="75" tabindex="0" title="Ziehen, um die Breite zu ändern. Doppelklick setzt zurück."></div>
 
   <section class="panel machine-panel">
     <div class="controls">
@@ -292,15 +293,15 @@ code { font-size: 12.5px; background: var(--btn); padding: 0 4px; border-radius:
       <button id="btnPause">Pause</button>
       <div class="seg" role="radiogroup" aria-label="Tempo">
         <span class="seg-lbl">Tempo</span>
-        <label title="1 Befehl pro Sekunde – zum Mitverfolgen"><input type="radio" name="speed" value="slow" checked><span class="opt">Langsam</span></label>
+        <label title="1 Befehl pro Sekunde zum Mitverfolgen"><input type="radio" name="speed" value="slow" checked><span class="opt">Langsam</span></label>
         <label title="So schnell wie möglich"><input type="radio" name="speed" value="fast"><span class="opt">Schnell</span></label>
       </div>
     </div>
     <div class="regs">
-      <div class="reg"><span class="rn"><b>BZ</b> Befehlszähler</span><span id="rIP" class="rv addr">–</span></div>
-      <div class="reg"><span class="rn"><b>AK</b> Akkumulator</span><span id="rACC" class="rv val">–</span></div>
+      <div class="reg"><span class="rn"><b>BZ</b> Befehlszähler</span><span id="rIP" class="rv addr">&nbsp;</span></div>
+      <div class="reg"><span class="rn"><b>AK</b> Akkumulator</span><span id="rACC" class="rv val">&nbsp;</span></div>
       <div class="reg"><span class="rn">Schritte</span><span id="rSteps" class="rv">0</span></div>
-      <div class="reg"><span class="rn">Status</span><span id="rStatus" class="rv" style="font-size:15px;font-family:system-ui,sans-serif">–</span></div>
+      <div class="reg"><span class="rn">Status</span><span id="rStatus" class="rv" style="font-size:15px;font-family:system-ui,sans-serif">&nbsp;</span></div>
     </div>
     <div class="next" id="nextIns"></div>
     <div class="mem" id="memWrap">
@@ -330,7 +331,7 @@ const EXAMPLES = [
  {
   "name": "intro_simpleAdd.as",
   "start": 0,
-  "src": "# Alle Zeichen nach einer Raute sind \"Kommentare\" und werden vom Prozessor ignoriert.\n; Das gilt ebenso für Strichpunkte.\n#\n# *** Programm (ab Speicherzelle 000) ***\n000:\n    # Zwei Werte x und y einlesen\n    11 027 # Wert für x einlesen (Befehl 11) und in Adresse 27 ablegen\n    11 042 # y einlesen -> Adresse 42\n\n    # Werte addieren und Ergebnis speichern\n    01 027 # Wert von x in den Akkumulator laden\n    02 042 # Wert von y dazu addieren\n    08 017 # Ergebnis der Addition aus dem Akkumulator nach Adresse 17 (z) speichern\n\n    # Ergebnis ausgeben\n    12 017 # Ausgeben (12) des Ergebnisses z von Adresse 17\n\n    # Programm beenden\n    00 123 # HLT (irgendeine Adresse, da sie für HLT egal ist)\n\n\n\n# *** Vordefinierte Variablen ***\n# x hat den Startwert 12345 – er wird beim Einlesen überschrieben. y und z haben keinen Startwert.\n27:\n    12345 @ x\n42:\n          @ y\n17:\n          @ z\n"
+  "src": "# Alle Zeichen nach einer Raute sind \"Kommentare\" und werden vom Prozessor ignoriert.\n; Das gilt ebenso für Strichpunkte.\n#\n# *** Programm (ab Speicherzelle 000) ***\n000:\n    # Zwei Werte x und y einlesen\n    11 027 # Wert für x einlesen (Befehl 11) und in Adresse 27 ablegen\n    11 042 # y einlesen -> Adresse 42\n\n    # Werte addieren und Ergebnis speichern\n    01 027 # Wert von x in den Akkumulator laden\n    02 042 # Wert von y dazu addieren\n    08 017 # Ergebnis der Addition aus dem Akkumulator nach Adresse 17 (z) speichern\n\n    # Ergebnis ausgeben\n    12 017 # Ausgeben (12) des Ergebnisses z von Adresse 17\n\n    # Programm beenden\n    00 123 # HLT (irgendeine Adresse, da sie für HLT egal ist)\n\n\n\n# *** Vordefinierte Variablen ***\n# x hat den Startwert 12345. Er wird beim Einlesen überschrieben. y und z haben keinen Startwert.\n27:\n    12345 @ x\n42:\n          @ y\n17:\n          @ z\n"
  },
  {
   "name": "Intro_Ex1_lineareFunktion.as",
@@ -484,10 +485,10 @@ function assemble(text) {
       value = parseInt(w, 10);
       if (value < WRD_MIN || value > WRD_MAX) return fail(no, `${value} passt nicht in eine Speicherzelle (−99999…99999).`);
     }
-    if (next > ADDR_MAX) return fail(no, "Speicherende überschritten – Adresse 1000 gibt es nicht.");
+    if (next > ADDR_MAX) return fail(no, "Speicherende überschritten: Adresse 1000 gibt es nicht.");
 
     const prev = mem.get(next);
-    if (prev) warnings.push(`Warnung: Adresse ${fA(next)} wird zweimal belegt – es gilt der spätere Wert.`);
+    if (prev) warnings.push(`Warnung: Adresse ${fA(next)} wird zweimal belegt, es gilt der spätere Wert.`);
     mem.set(next, { value, name: label ?? prev?.name ?? null, line: no, random });
     lineAddr[i] = next;
     next++;
@@ -512,7 +513,7 @@ function read(a, fetch) {
   if (!c) { c = { value: rnd(), name: null, line: null, random: true }; M.mem.set(a, c); }
   if (c.random) warn(fetch
     ? `Befehl aus Zelle ${cell(a)} geholt, die keinen definierten Inhalt hat (Zufallswert ${fW(c.value)}).`
-    : `Zelle ${cell(a)} hat noch keinen definierten Wert – gelesen wird ein Zufallswert (${fW(c.value)}).`);
+    : `Zelle ${cell(a)} hat noch keinen definierten Wert, gelesen wird ein Zufallswert (${fW(c.value)}).`);
   return c.value;
 }
 
@@ -552,7 +553,7 @@ const EXEC = [
   /* 04 MUL */ a => arith(a, "·", (x, y) => x * y),
   /* 05 DIV */ a => {
     const v = read(a);
-    if (v === 0) throw new MachineError(`Division durch null – ${cell(a)} enthält 0.`);
+    if (v === 0) throw new MachineError(`Division durch null: ${cell(a)} enthält 0.`);
     const p = M.acc;
     setAcc(bound(Math.trunc(p / v)));
     return { t: `AK = ${fW(p)} / ${fW(v)} = ${fW(M.acc)}` };
@@ -581,9 +582,9 @@ const EXEC = [
 async function step() {
   const ip = M.ip;
   if (ip < ADDR_MIN || ip > ADDR_MAX)
-    throw new MachineError(`Der Befehlszähler steht auf ${ip} – diese Adresse gibt es nicht. Fehlt ein HLT?`);
+    throw new MachineError(`Der Befehlszähler steht auf ${ip}. Diese Adresse gibt es nicht. Fehlt ein HLT?`);
   const ins = read(ip, true);
-  if (ins < 0) throw new MachineError(`An Adresse ${fA(ip)} steht ${fW(ins)} – ein negatives Wort ist kein gültiger Befehl.`);
+  if (ins < 0) throw new MachineError(`An Adresse ${fA(ip)} steht ${fW(ins)}. Ein negatives Wort ist kein gültiger Befehl.`);
   const a = ins % 1000, op = Math.floor(ins / 1000), I = ISET[op];
   if (!I) throw new MachineError(`Unbekannter Befehlscode ${pad(op, 2)} im Wort ${fIns(ins)} an Adresse ${fA(ip)}.`);
   if (a < I.min || a > I.max) throw new MachineError(`${I.n}: Operand ${a} liegt außerhalb von ${I.min}…${I.max}.`);
@@ -754,7 +755,7 @@ function askInput(a) {
 // Anzeige    //
 ////////////////
 function disasmHTML(v) {
-  if (v < 0) return `<span class="dim">${fIns(v)} – kein Befehl</span>`;
+  if (v < 0) return `<span class="dim">${fIns(v)} (kein Befehl)</span>`;
   const op = Math.floor(v / 1000), a = v % 1000, I = ISET[op];
   const raw = `<span class="dim">${fIns(v)}</span>`;
   if (!I) return `${raw} <span class="dim">unbekannter Code</span>`;
@@ -776,8 +777,8 @@ function statusInfo() {
 
 function render(follow) {
   const live = M.status !== "empty";
-  els.rIP.textContent = live ? fA(M.ip) : "–";
-  els.rACC.innerHTML = live ? fW(M.acc) + (M.accRandom ? '<span class="tag">zufällig</span>' : "") : "–";
+  els.rIP.textContent = live ? fA(M.ip) : "\u00a0";
+  els.rACC.innerHTML = live ? fW(M.acc) + (M.accRandom ? '<span class="tag">zufällig</span>' : "") : "\u00a0";
   els.rSteps.textContent = M.steps;
   const [st, stCls] = statusInfo();
   els.rStatus.textContent = st;
@@ -799,13 +800,13 @@ function renderNext() {
   const n = els.nextIns;
   if (M.status === "empty") { n.innerHTML = '<span class="lbl">Kein Programm geladen.</span>'; return; }
   if (M.status === "halted") { n.innerHTML = '<span class="lbl">Programm mit HLT beendet. „Neu starten“ lädt es erneut.</span>'; return; }
-  if (M.status === "error") { n.innerHTML = '<span class="lbl">Ausführung abgebrochen – siehe Meldung unten.</span>'; return; }
-  if (M.ip < ADDR_MIN || M.ip > ADDR_MAX) { n.innerHTML = `<span class="lbl">BZ zeigt auf ${M.ip} – außerhalb des Speichers.</span>`; return; }
+  if (M.status === "error") { n.innerHTML = '<span class="lbl">Ausführung abgebrochen, siehe Meldung unten.</span>'; return; }
+  if (M.ip < ADDR_MIN || M.ip > ADDR_MAX) { n.innerHTML = `<span class="lbl">BZ zeigt auf ${M.ip}, außerhalb des Speichers.</span>`; return; }
   const c = M.mem.get(M.ip);
   if (!c) { n.innerHTML = `<span class="lbl">Nächster Befehl:</span> Zelle <span class="addr">${fA(M.ip)}</span> ist leer (Zufallswert).`; return; }
   const I = c.value >= 0 ? ISET[Math.floor(c.value / 1000)] : null;
   n.innerHTML = `<span class="lbl">Nächster Befehl:</span> <span class="addr">${fA(M.ip)}</span>: ${disasmHTML(c.value)}` +
-    (I ? ` <span class="lbl">– ${esc(I.d)}</span>` : "");
+    (I ? ` <span class="lbl desc">${esc(I.d)}</span>` : "");
 }
 
 function renderMem(follow) {
@@ -948,7 +949,7 @@ function save() {
   saveTimer = setTimeout(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ src: els.src.value, name: fileName, pristine, start: els.startAddr.value }));
-    } catch (e) { /* Speichern nicht möglich – egal */ }
+    } catch (e) { /* Speichern nicht möglich, egal */ }
   }, 300);
 }
 
@@ -1130,7 +1131,7 @@ try {
   setEditorWidth(Number.isFinite(w) ? w : ED_DEFAULT, false);
 } catch (e) { setEditorWidth(ED_DEFAULT, false); }
 
-// Schriftgröße im Editor (A− / A+), z. B. für den Beamer; Zeilenhöhe wächst im selben Verhältnis mit
+// Schriftgröße im Editor (A− / A+); Zeilenhöhe wächst im selben Verhältnis mit
 const editorEl = document.querySelector(".editor");
 let zoomIndex = 0;
 
