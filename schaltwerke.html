@@ -313,7 +313,7 @@ body.resizing-v, body.resizing-v * { cursor: row-resize !important; user-select:
 "use strict";
 
 const GRID = 10;
-const ROW = 26, MAX_COLS = 600;                    // Ablaufdiagramm: Zeilenhöhe, max. Rasterpunkte
+const ROW = 26, ROW_MAX = 60, MAX_COLS = 600;      // Ablaufdiagramm: Zeilenhöhe (min./max.), max. Rasterpunkte
 const TICK_WIDTHS = [4, 6, 8, 12, 16, 24, 32, 48]; // Breite eines Rasterpunkts im Ablaufdiagramm (Zoom)
 const TICK_MS = 250;                               // ms pro Rasterpunkt beim Abspielen
 // 4 Rasterpunkte pro Taktperiode: fallende Flanke, Mitte, steigende Flanke, Mitte (Zeit t = 0, 1, 2, 3)
@@ -718,10 +718,13 @@ function renderDiagram() {
   const list = watched(), scroller = $("diaScroll");
   const clk = comps.find(c => c.type === "clock");
   const AXIS = clk ? 18 : 0;  // Zeile mit den Taktnummern über den Signalen
+  // Zeilenhöhe: die Signale füllen die Höhe des Diagramms aus (größer ziehen = höhere Signale)
+  const avail = document.querySelector(".dia").clientHeight - 4 - AXIS - 14;
+  const rowH = Math.max(ROW, Math.min(ROW_MAX, Math.floor(avail / Math.max(1, list.length))));
   $("diaLabels").innerHTML = `<div style="height:${AXIS}px"></div>` + (list.length
-    ? list.map(c => `<div class="dl" style="height:${ROW}px" title="${esc(diaLabel(c))}">${overline(esc(diaLabel(c)), "span")}</div>`).join("")
+    ? list.map(c => `<div class="dl" style="height:${rowH}px" title="${esc(diaLabel(c))}">${overline(esc(diaLabel(c)), "span")}</div>`).join("")
     : `<div class="dl muted" style="font-weight:400">keine Signale</div>`);
-  const n = columns.length, H = Math.max(1, list.length) * ROW, HT = H + AXIS;
+  const n = columns.length, H = Math.max(1, list.length) * rowH, HT = H + AXIS;
   const W = Math.max(n * tickW + 30, scroller.clientWidth - 2);
   const atEnd = scroller.scrollLeft + scroller.clientWidth >= scroller.scrollWidth - 30;
   let s = `<svg width="${W}" height="${HT}" xmlns="http://www.w3.org/2000/svg">`;
@@ -754,14 +757,14 @@ function renderDiagram() {
   }
   else for (let i = 1; i < n; i++) s += `<line class="edge-mid" x1="${i * tickW}" x2="${i * tickW}" y1="0" y2="${H}"/>`;
   s += `<g transform="translate(0,${AXIS})">`;
-  list.forEach((_, r) => { s += `<line class="rowline" x1="0" x2="${W}" y1="${(r + 1) * ROW - 0.5}" y2="${(r + 1) * ROW - 0.5}"/>`; });
+  list.forEach((_, r) => { s += `<line class="rowline" x1="0" x2="${W}" y1="${(r + 1) * rowH - 0.5}" y2="${(r + 1) * rowH - 0.5}"/>`; });
   // Hinweis passend dazu, ob es einen Takt gibt
   $("diaHint").textContent = clk
     ? "Schalter wechseln nur an den senkrechten Rasterlinien. Die blaue Linie ist der aktuelle Zeitpunkt: Schalter gelten ab hier, „Schritt“ zeichnet weiter." +
       (act.rise || act.fall ? " Rot: die Taktflanke, bei der die Flipflops am Takt schalten." : "")
     : "Ohne Takt: Jede Änderung an einem Schalter ergibt eine neue Spalte.";
   list.forEach((c, r) => {
-    const hi = r * ROW + 5, lo = r * ROW + ROW - 7, mid = (hi + lo) / 2;
+    const pad = Math.round(rowH * 0.2), hi = r * rowH + pad, lo = (r + 1) * rowH - pad - 2, mid = (hi + lo) / 2;
     const segs = segments(c.id);
     if (c.type === "display") {
       for (let i = 0; i < segs.length;) {
@@ -1556,6 +1559,7 @@ window.addEventListener("pointerup", () => {
   document.body.classList.remove("resizing-v");
   save();
 });
+window.addEventListener("resize", () => renderDiagram());
 $("hsplit").addEventListener("dblclick", () => setDiaHeight(DIA_DEFAULT));
 $("hsplit").addEventListener("keydown", e => {
   if (e.key === "ArrowUp") { e.preventDefault(); setDiaHeight(diaH + 20); }
