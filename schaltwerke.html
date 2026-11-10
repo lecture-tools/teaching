@@ -10,7 +10,7 @@
   --text: #1b2230; --muted: #5d6877; --accent: #0065bd; --accent-text: #ffffff;
   --one: #e8590c; --one-soft: #ffe8d9; --zero: #9aa4b1; --lamp-on: #ffb000;
   --body: #ffffff; --body-stroke: #3b4452; --canvas: #fbfcfd; --grid: #cfd5dd;
-  --warn: #9a6200; --btn: #eef1f5; --btn-hover: #e1e6ed; --note-bg: #eaf3fc;
+  --warn: #9a6200; --btn: #eef1f5; --btn-hover: #e1e6ed; --note-bg: #eaf3fc; --edge: #d6336c;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
@@ -18,7 +18,7 @@
     --text: #e4e8ee; --muted: #98a3b3; --accent: #4a9be6; --accent-text: #0b1320;
     --one: #ff8c42; --one-soft: #4a2a14; --zero: #5d6877; --lamp-on: #ffc93c;
     --body: #1e252f; --body-stroke: #c9d1db; --canvas: #141920; --grid: #2f3845;
-    --warn: #e0a63c; --btn: #222935; --btn-hover: #2b3442; --note-bg: #15243a;
+    --warn: #e0a63c; --btn: #222935; --btn-hover: #2b3442; --note-bg: #15243a --edge: #ff6b8b;
   }
 }
 :root[data-theme="dark"] {
@@ -26,7 +26,7 @@
   --text: #e4e8ee; --muted: #98a3b3; --accent: #4a9be6; --accent-text: #0b1320;
   --one: #ff8c42; --one-soft: #4a2a14; --zero: #5d6877; --lamp-on: #ffc93c;
   --body: #1e252f; --body-stroke: #c9d1db; --canvas: #141920; --grid: #2f3845;
-  --warn: #e0a63c; --btn: #222935; --btn-hover: #2b3442; --note-bg: #15243a;
+  --warn: #e0a63c; --btn: #222935; --btn-hover: #2b3442; --note-bg: #15243a --edge: #ff6b8b;
 }
 
 * { box-sizing: border-box; }
@@ -199,6 +199,10 @@ body.resizing-v, body.resizing-v * { cursor: row-resize !important; user-select:
 /* Takt von fallender zu fallender Flanke: Grenzen durchgezogen, Taktmitte (steigende Flanke) gestrichelt */
 .tline-bound { stroke: var(--accent); stroke-width: 1.2; opacity: .7; }
 .tline-mid { stroke: var(--accent); stroke-width: 1.2; stroke-dasharray: 4 3; opacity: .7; }
+/* aktive Taktflanke: hier schalten die Flipflops am Takt (steigend, mit Knubbel fallend) */
+.tline-mid.active, .tline-bound.active { stroke: var(--edge); stroke-width: 1.6; opacity: .9; }
+.tline-mid.active.future, .tline-bound.active.future { opacity: .35; }
+.edge-hl { stroke: var(--edge); stroke-width: 3.5; stroke-linecap: round; }
 .edge-mid { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 2 3; opacity: .55; }
 .future { opacity: .45; }
 .now { stroke: var(--accent); stroke-width: 2; }
@@ -319,6 +323,16 @@ const levelAt = t => (phaseOf(t) >= perPeriod / 2 ? 1 : 0);
 // Takt k reicht von fallender zu fallender Flanke, in der Mitte liegt die k-te steigende Flanke.
 // Laufender Takt: der, in dem der aktuelle Zeitpunkt liegt (nach „Neu“ gleich Takt 1).
 const currentPeriod = () => Math.floor(time / perPeriod) + 1;
+
+// Welche Taktflanken aktiv sind: die der Flipflops, deren Takteingang direkt am Takt-Baustein hängt
+function activeEdges() {
+  const act = { rise: false, fall: false };
+  for (const w of wires) {
+    const src = byId(w.from.c), dst = byId(w.to.c);
+    if (src && dst && src.type === "clock" && CLOCKED.has(dst.type) && w.to.p === "C") act[dst.props.neg ? "fall" : "rise"] = true;
+  }
+  return act;
+}
 
 function phaseName(t) {
   const p = phaseOf(t);
@@ -714,9 +728,11 @@ function renderDiagram() {
   // Linie blasser (Zukunft). Die Taktnummer steht über der Taktmitte; die Linien beginnen erst
   // unterhalb der Nummernzeile.
   const period = perPeriod * tickW, every = period >= 22 ? 1 : period >= 12 ? 2 : 5, curK = currentPeriod();
+  const act = activeEdges();
   if (clk) for (let i = 1; i * tickW < W; i++) {
     const T = time - n + i, p = phaseOf(T), x = i * tickW;
-    const cls = p === perPeriod / 2 ? "tline-mid" : p === 0 ? "tline-bound" : "edge-mid";
+    const cls = p === perPeriod / 2 ? "tline-mid" + (act.rise ? " active" : "")
+      : p === 0 ? "tline-bound" + (act.fall ? " active" : "") : "edge-mid";
     s += `<line class="${cls}${i > n ? " future" : ""}" x1="${x}" x2="${x}" y1="${AXIS}" y2="${HT}"/>`;
     const k = (T - perPeriod / 2) / perPeriod + 1;
     if (p === perPeriod / 2 && k === curK) {
@@ -732,7 +748,8 @@ function renderDiagram() {
   list.forEach((_, r) => { s += `<line class="rowline" x1="0" x2="${W}" y1="${(r + 1) * ROW - 0.5}" y2="${(r + 1) * ROW - 0.5}"/>`; });
   // Hinweis passend dazu, ob es einen Takt gibt
   $("diaHint").textContent = clk
-    ? "Schalter wechseln nur an den senkrechten Rasterlinien. Die blaue Linie ist der aktuelle Zeitpunkt: Schalter gelten ab hier, „Schritt“ zeichnet weiter."
+    ? "Schalter wechseln nur an den senkrechten Rasterlinien. Die blaue Linie ist der aktuelle Zeitpunkt: Schalter gelten ab hier, „Schritt“ zeichnet weiter." +
+      (act.rise || act.fall ? " Rot: die Taktflanke, bei der die Flipflops am Takt schalten." : "")
     : "Ohne Takt: Jede Änderung an einem Schalter ergibt eine neue Spalte.";
   list.forEach((c, r) => {
     const hi = r * ROW + 5, lo = r * ROW + ROW - 7, mid = (hi + lo) / 2;
@@ -763,6 +780,11 @@ function renderDiagram() {
     }
     if (fill) s += `<path class="sig-fill" d="${fill}"/>`;
     if (d) s += `<path class="sig" d="${d}"/>`;
+    if (c.type === "clock") for (let i = 1; i < segs.length; i++) {
+      const a = segs[i - 1].v, b = segs[i].v;
+      if (a != null && b != null && a !== b && (b ? act.rise : act.fall))
+        s += `<line class="edge-hl" x1="${segs[i].x0}" x2="${segs[i].x0}" y1="${hi}" y2="${lo}"/>`;
+    }
     // blasser Ansatz rechts der blauen Linie: der jetzt eingestellte Pegel
     if (clk) {
       const x = n * tickW, y = sample(c) ? hi : lo, last = segs.at(-1);
