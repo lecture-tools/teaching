@@ -223,13 +223,22 @@ code { font-size: 12.5px; background: var(--btn); padding: 0 4px; border-radius:
   .console { flex: none; height: 40vh; }
   details.help { max-height: none; }
 }
+/* TUM-Logo: TUM-Blau, auf dunklem Hintergrund weiß */
+.tum-logo { flex: none; width: auto; color: #0065bd; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .tum-logo { color: #ffffff; } }
+:root[data-theme="dark"] .tum-logo { color: #ffffff; }
+.brand { display: flex; align-items: center; gap: 14px; }
+.brand .tum-logo { height: 30px; }
 </style>
 </head>
 <body>
 <header class="top">
-  <div>
-    <h1>Einadressmaschine</h1>
-    <div class="sub">Simulator zur Vorlesung Grundlagen der Informationstechnik, Prof. Hanik</div>
+  <div class="brand">
+    <svg class="tum-logo" viewBox="0 0 269 142" role="img" aria-label="Technische Universität München"><path fill="currentColor" fill-rule="evenodd" d="M 24.09 25.53 L 24.09 141.93 L 49.35 141.93 L 49.35 25.66 L 77.45 25.66 L 77.45 141.93 L 157.82 141.93 L 157.82 26.91 L 186.35 26.91 L 186.35 141.87 L 212.87 141.87 L 212.87 26.91 L 241.79 26.91 L 241.79 141.87 L 268.31 141.87 L 268.31 0.33 L 132.37 0.33 L 132.37 116.17 L 103.21 116.17 L 103.21 0.39 L 0.10 0.39 L 0.10 25.53 L 24.09 25.53"/></svg>
+    <div>
+      <h1>Einadressmaschine</h1>
+      <div class="sub">Simulator zur Vorlesung Grundlagen der Informationstechnik, Prof. Hanik</div>
+    </div>
   </div>
   <div class="tools">
     <select id="examples" aria-label="Beispielprogramm"><option value="">Beispielprogramm laden …</option></select>
@@ -1057,10 +1066,59 @@ els.src.addEventListener("input", () => {
   render();
 });
 els.src.addEventListener("scroll", () => { syncEditor(); placeHl(); });
+// Einfügen über execCommand, damit Rückgängig (Strg/Cmd+Z) funktioniert
+function insertText(s) {
+  if (!document.execCommand("insertText", false, s)) els.src.setRangeText(s, els.src.selectionStart, els.src.selectionEnd, "end");
+}
+
+// Zeile nach ihrem Inhalt ausrichten: Adresse ganz links, Wort in Spalte WORD_COL ("000: 12909").
+// Zeilen ohne Adresse und Wort (Kommentare, Fehler) bleiben, wie sie sind; reine Leerzeichen werden entfernt.
+const WORD_COL = 5;
+function alignLine(line) {
+  const [, sp1, addr, colon, sp2, word] = line.match(LINE_RE);
+  if (!addr && !word) return line.trim() ? line : "";
+  const head = addr ? addr + ":" : "", body = line.slice((sp1 + (addr ? addr + colon : "") + sp2).length);
+  return body ? head + " ".repeat(Math.max(WORD_COL - head.length, 1)) + body : head;
+}
+
+// Tab: vier Leerzeichen. Enter: Zeile ausrichten, neue Zeile beginnt in Spalte WORD_COL (Shift+Enter: unverändert).
+// ":" schiebt die Adresse an den Zeilenanfang und rückt bis Spalte WORD_COL ein, nach den ersten zwei Ziffern
+// eines Worts folgt ein Leerzeichen ("11 234"). Ein direkt danach getipptes Leerzeichen wird geschluckt.
+// "#"/";" in einer leeren Zeile springt an den Zeilenanfang.
+let autoSpaceAt = null;
 els.src.addEventListener("keydown", e => {
-  if (e.key === "Tab" && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
+  if (e.ctrlKey || e.metaKey || e.altKey || e.isComposing) return;
+  const ta = els.src, v = ta.value, pos = ta.selectionStart, auto = autoSpaceAt;
+  autoSpaceAt = null;
+  if (pos !== ta.selectionEnd && e.key !== "Tab") return;
+  const ls = v.lastIndexOf("\n", pos - 1) + 1, le = v.indexOf("\n", pos) < 0 ? v.length : v.indexOf("\n", pos);
+  const before = v.slice(ls, pos), after = v.slice(pos, le);
+  if (e.key === " " && pos === auto) {
     e.preventDefault();
-    if (!document.execCommand("insertText", false, "    ")) els.src.setRangeText("    ", els.src.selectionStart, els.src.selectionEnd, "end");
+  } else if (e.key === ":" && /^[\s\d]*\d$/.test(before)) {
+    e.preventDefault();
+    const head = before.replace(/\s/g, "") + ":", pad = /^\s/.test(after) ? "" : " ".repeat(Math.max(WORD_COL - head.length, 1));
+    ta.setSelectionRange(ls, pos);
+    insertText(head + pad);
+    if (pad) autoSpaceAt = ls + head.length + pad.length;
+  } else if (/^\d$/.test(e.key) && /^(\d+:\s+|\s+)\d$/.test(before) && !after.trim()) {
+    e.preventDefault();
+    insertText(e.key + " ");
+    autoSpaceAt = pos + 2;
+  } else if (e.key === "Tab" && !e.shiftKey) {
+    e.preventDefault();
+    insertText("    ");
+  } else if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    const a = alignLine(before), b = after.trim() ? alignLine(after) : " ".repeat(WORD_COL);
+    ta.setSelectionRange(ls, le);
+    insertText(a + "\n" + b);
+    const cur = ls + a.length + 1 + b.length - b.trimStart().length;
+    ta.setSelectionRange(cur, cur);
+  } else if ((e.key === "#" || e.key === ";") && before && !before.trim() && !after.trim()) {
+    e.preventDefault();
+    ta.setSelectionRange(ls, le);
+    insertText(e.key);
   }
 });
 
