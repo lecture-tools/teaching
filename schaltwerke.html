@@ -319,7 +319,7 @@ body.resizing-v, body.resizing-v * { cursor: row-resize !important; user-select:
 "use strict";
 
 const GRID = 10;
-const ROW = 26, ROW_MAX = 60, MAX_COLS = 600;      // Ablaufdiagramm: Zeilenhöhe (min./max.), max. Rasterpunkte
+const ROW = 26, ROW_MAX = 160, MAX_COLS = 600;      // Ablaufdiagramm: Zeilenhöhe (min./max.), max. Rasterpunkte
 const TICK_WIDTHS = [4, 6, 8, 12, 16, 24, 32, 48]; // Breite eines Rasterpunkts im Ablaufdiagramm (Zoom)
 const TICK_MS = 250;                               // ms pro Rasterpunkt beim Abspielen
 // 4 Rasterpunkte pro Taktperiode: fallende Flanke, Mitte, steigende Flanke, Mitte (Zeit t = 0, 1, 2, 3)
