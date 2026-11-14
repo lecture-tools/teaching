@@ -165,6 +165,8 @@ section.stage { display: flex; flex-direction: column; min-height: 0; min-width:
 .pin-dot { fill: var(--zero); }
 .pin-hit { fill: transparent; cursor: crosshair; }
 .pin-hit:hover { fill: var(--accent); fill-opacity: .25; }
+/* beim Ziehen einer Leitung: alle passenden Anschlüsse zeigen, auch schon verbundene */
+svg[data-wiring="in"] .pin[data-pin$="|in"] .pin-hit, svg[data-wiring="out"] .pin[data-pin$="|out"] .pin-hit { fill: var(--accent); fill-opacity: .18; }
 .comp { cursor: move; }
 .toggle rect { fill: var(--btn); stroke: var(--zero); stroke-width: 1; }
 .toggle.on rect { fill: var(--one-soft); stroke: var(--one); stroke-width: 1.5; }
@@ -254,7 +256,7 @@ body.resizing-v, body.resizing-v * { cursor: row-resize !important; user-select:
       <summary>So geht’s</summary>
       <ul>
         <li>Bausteine aus der Liste auf die Fläche ziehen (oder anklicken).</li>
-        <li>Verbinden: vom Anschluss eines Bausteins (kleiner Punkt) zum Anschluss eines anderen ziehen.</li>
+        <li>Verbinden: vom Anschluss eines Bausteins (kleiner Punkt) zum Anschluss eines anderen ziehen. Ein Ausgang darf mehrere Eingänge versorgen. Vom Eingang aus kann man auch einfach auf eine vorhandene Leitung ziehen.</li>
         <li>Schalter: Klick auf die Zahl schaltet zwischen 0 und 1 um. Klick auf den Rand oder den Namen wählt ihn nur aus, Ziehen verschiebt ihn.</li>
         <li>Klick auf den Takteingang (Dreieck) setzt oder entfernt den Knubbel. Mit Knubbel schaltet das Flipflop bei fallender Flanke, sonst bei steigender.</li>
         <li>Nicht verbundene Eingänge gelten als 0.</li>
@@ -939,6 +941,7 @@ function render() {
     const a = pinPos(drag.from.c, drag.from.p);
     s += `<path class="wire-temp" d="M${a.x},${a.y}L${drag.x},${drag.y}"/>`;
   }
+  svg.dataset.wiring = drag && drag.kind === "wire" ? (drag.from.io === "in" ? "out" : "in") : "";
   svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
   svg.setAttribute("width", W * zoom);
   svg.setAttribute("height", H * zoom);
@@ -1041,6 +1044,26 @@ function connect(a, b) {
   changed();
 }
 
+// Ziel beim Loslassen einer neuen Leitung: der Anschluss unter dem Zeiger, sonst der nächste passende in der Nähe,
+// sonst eine vorhandene Leitung (vom Eingang aus gezogen: deren Ausgang wird angeschlossen)
+function dropTarget(from, el, pt) {
+  const pinEl = el && el.closest("[data-pin]");
+  if (pinEl) { const [c, p, io] = pinEl.dataset.pin.split("|"); return { c, p, io }; }
+  const io = from.io === "in" ? "out" : "in";
+  let best = null, bestD = 16;
+  for (const c of comps) {
+    const g = geo(c);
+    for (const p of io === "in" ? g.ins : g.outs) {
+      const dist = Math.hypot(c.x + p.x - pt.x, c.y + p.y - pt.y);
+      if (dist < bestD) { bestD = dist; best = { c: c.id, p: p.id, io }; }
+    }
+  }
+  if (best) return best;
+  const wireEl = el && el.closest("[data-wire]");
+  if (wireEl && from.io === "in") return { ...wires[+wireEl.dataset.wire].from, io: "out" };
+  return null;
+}
+
 function addComp(type, x, y) {
   pushUndo();
   const c = makeComp(type, 0, 0);
@@ -1124,12 +1147,9 @@ svg.addEventListener("pointerup", e => {
       changed();
       return;
     }
-    const el = document.elementFromPoint(e.clientX, e.clientY);
-    const pinEl = el && el.closest("[data-pin]");
-    if (pinEl) {
-      const [c, p, io] = pinEl.dataset.pin.split("|");
-      connect(d.from, { c, p, io });
-    } else render();
+    const target = dropTarget(d.from, document.elementFromPoint(e.clientX, e.clientY), toWorld(e));
+    if (target) connect(d.from, target);
+    else render();
   } else if (d.kind === "move") {
     if (d.moved) { pushUndo(d.before); save(); render(); }
     else if (d.c.type === "switch" && d.toggle) { d.c.props.value = 1 - d.c.props.value; event(); }
