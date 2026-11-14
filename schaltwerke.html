@@ -159,6 +159,10 @@ section.stage { display: flex; flex-direction: column; min-height: 0; min-width:
 .wire.one { stroke: var(--one); stroke-width: 2.5; }
 .wire-glow { fill: none; stroke: var(--accent); stroke-width: 7; opacity: .3; stroke-linejoin: round; }
 .wire-hit { fill: none; stroke: transparent; stroke-width: 12; cursor: pointer; }
+.wire-hit.seg-x { cursor: ew-resize; }
+.wire-hit.seg-y { cursor: ns-resize; }
+.junction { fill: var(--zero); pointer-events: none; }
+.junction.one { fill: var(--one); }
 .wire-temp { fill: none; stroke: var(--accent); stroke-width: 2; stroke-dasharray: 5 4; pointer-events: none; }
 .lampc { fill: var(--body); stroke: var(--body-stroke); stroke-width: 1.5; }
 .lampc.lit { fill: var(--lamp-on); stroke: var(--one); }
@@ -471,7 +475,7 @@ function restore(json) {
   }));
   comps = cs;
   wires = d.wires.filter(w => w && w.from && w.to && pinPos(w.from.c, w.from.p) && pinPos(w.to.c, w.to.p))
-    .map(w => ({ from: { c: w.from.c, p: w.from.p }, to: { c: w.to.c, p: w.to.p }, ...(Number.isFinite(w.mx) ? { mx: w.mx } : {}), ...(Number.isFinite(w.my) ? { my: w.my } : {}) }));
+    .map(w => ({ from: { c: w.from.c, p: w.from.p }, to: { c: w.to.c, p: w.to.p }, ...(Number.isFinite(w.mx) ? { mx: w.mx } : {}), ...(Number.isFinite(w.my) ? { my: w.my } : {}), ...(Number.isFinite(w.ix) ? { ix: w.ix } : {}) }));
   nextId = 1 + Math.max(0, ...comps.map(c => parseInt(c.id.replace(/\D/g, ""), 10) || 0));
 }
 
@@ -911,18 +915,75 @@ function compSVG(c, interactive = true) {
   return `<g class="comp t-${c.type}" data-comp="${c.id}">${box}${s}</g>`;
 }
 
-// rechtwinklige Leitung von Ausgang a zu Eingang b
-function wirePath(w) {
+// rechtwinklige Leitung von Ausgang a zu Eingang b als Eckpunkte; segs[i] sagt, welche Eigenschaft der Leitung
+// den Abschnitt pts[i] → pts[i+1] verschiebt (mx/ix: senkrechter Abschnitt, my: waagrechter, null: fest)
+function wirePoints(w) {
   const a = pinPos(w.from.c, w.from.p), b = pinPos(w.to.c, w.to.p);
-  if (!a || !b) return "";
-  if (b.side === "top" || b.side === "bottom") return `M${a.x},${a.y}H${b.x}V${b.y}`;
+  if (!a || !b) return null;
+  if (b.side === "top" || b.side === "bottom") return { a, b, pts: [[a.x, a.y], [b.x, a.y], [b.x, b.y]], segs: [null, null] };
   if (b.x >= a.x + 20) {
     const mx = w.mx != null && w.mx > a.x && w.mx < b.x ? w.mx : snap((a.x + b.x) / 2);
-    return `M${a.x},${a.y}H${mx}V${b.y}H${b.x}`;
+    return { a, b, pts: [[a.x, a.y], [mx, a.y], [mx, b.y], [b.x, b.y]], segs: [null, "mx", null] };
   }
-  // Rückführung nach links: waagrechter Abschnitt auf Höhe my (falls angegeben), sonst unterhalb
-  const ym = w.my != null ? w.my : Math.abs(a.y - b.y) < 30 ? Math.max(a.y, b.y) + 50 : snap((a.y + b.y) / 2);
-  return `M${a.x},${a.y}H${a.x + 10}V${ym}H${b.x - 10}V${b.y}H${b.x}`;
+  // Rückführung nach links: rechts vom Ausgang senkrecht bei mx, waagrecht auf Höhe my (sonst unterhalb),
+  // links vom Eingang senkrecht bei ix. Rückführungen nach oben laufen etwas versetzt, damit sich die beiden
+  // Leitungen eines RS-Flipflops aus Gattern kreuzen statt aufeinanderzuliegen.
+  const up = b.y < a.y, off = up ? 20 : 10;
+  const ym = w.my != null ? w.my : Math.abs(a.y - b.y) < 30 ? Math.max(a.y, b.y) + 50 : snap((a.y + b.y) / 2) + (up ? 10 : -10);
+  const ox = w.mx != null && w.mx >= a.x + 10 ? w.mx : a.x + off, ix = w.ix != null && w.ix <= b.x - 10 ? w.ix : b.x - off;
+  return { a, b, pts: [[a.x, a.y], [ox, a.y], [ox, ym], [ix, ym], [ix, b.y], [b.x, b.y]], segs: [null, "mx", "my", "ix", null] };
+}
+
+function wirePath(w) {
+  const r = wirePoints(w);
+  if (!r) return "";
+  return r.pts.reduce((d, [x, y], i) => d + (i === 0 ? `M${x},${y}` : x !== r.pts[i - 1][0] ? `H${x}` : y !== r.pts[i - 1][1] ? `V${y}` : ""), "");
+}
+
+// neue Lage eines Abschnitts beim Ziehen (Zeiger bei pt), so begrenzt, dass die Leitung ihre Form behält
+function bendTo(w, seg, pt) {
+  const { a, b } = wirePoints(w);
+  if (seg === "my") return snap(pt.y);
+  const x = snap(pt.x);
+  if (seg === "ix") return Math.min(x, b.x - 10);
+  return b.x >= a.x + 20 ? Math.min(Math.max(x, a.x + 10), b.x - 10) : Math.max(x, a.x + 10);
+}
+
+// Abzweigungen: wo sich zwei Leitungen vom selben Ausgang trennen, sitzt ein Punkt (ohne Punkt: nur Kreuzung)
+function junctions() {
+  // alle ganzzahligen Punkte entlang einer Leitung, vom Ausgang aus
+  const trace = pts => {
+    const out = [];
+    pts.forEach(([x, y], i) => {
+      if (i === 0) { out.push(`${Math.round(x)},${Math.round(y)}`); return; }
+      const [x0, y0] = pts[i - 1].map(Math.round), dx = Math.sign(Math.round(x) - x0), dy = Math.sign(Math.round(y) - y0);
+      const n = Math.max(Math.abs(Math.round(x) - x0), Math.abs(Math.round(y) - y0));
+      for (let t = 1; t <= n; t++) out.push(`${x0 + dx * t},${y0 + dy * t}`);
+    });
+    return out;
+  };
+  const bySrc = new Map();
+  for (const w of wires) {
+    const r = wirePoints(w);
+    if (!r) continue;
+    const k = w.from.c + "|" + w.from.p;
+    if (!bySrc.has(k)) bySrc.set(k, []);
+    bySrc.get(k).push(trace(r.pts));
+  }
+  const dots = new Map();
+  for (const [k, list] of bySrc) {
+    list.forEach((A, i) => {
+      const onA = new Set(A);
+      list.forEach((B, j) => {
+        if (i === j) return;
+        let n = 0;
+        while (n < B.length && onA.has(B[n])) n++;
+        // B verlässt A nach dem Ausgang, aber nicht erst am Ende von A
+        if (n > 1 && n < B.length && B[n - 1] !== A[A.length - 1]) dots.set(B[n - 1], k);
+      });
+    });
+  }
+  return [...dots].map(([p, k]) => { const [x, y] = p.split(",").map(Number); return { x, y, v: val.get(k) }; });
 }
 
 function render() {
@@ -931,11 +992,21 @@ function render() {
   const W = Math.max(1400, maxX + 400), H = Math.max(800, maxY + 300);
   let s = `<defs><pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse"><circle class="gdot" cx="10" cy="10" r="1"/></pattern></defs>` +
     `<rect width="${W}" height="${H}" fill="url(#grid)"/>`;
+  let hits = "";
   wires.forEach((w, i) => {
     const d = wirePath(w), v = val.get(w.from.c + "|" + w.from.p);
     if (sel && sel.w === w) s += `<path class="wire-glow" d="${d}"/>`;
-    s += `<path class="wire${v ? " one" : ""}" d="${d}"/><path class="wire-hit" data-wire="${i}" d="${d}"/>`;
+    s += `<path class="wire${v ? " one" : ""}" d="${d}"/>`;
+    // Klickflächen über allen Leitungen: die ganze Leitung zum Auswählen, darüber jeder verschiebbare Abschnitt
+    hits += `<path class="wire-hit" data-wire="${i}" d="${d}"/>`;
+    const r = wirePoints(w);
+    r && r.segs.forEach((seg, k) => {
+      const [[x1, y1], [x2, y2]] = [r.pts[k], r.pts[k + 1]];
+      if (seg && (x1 !== x2 || y1 !== y2)) hits += `<line class="wire-hit seg-${seg === "my" ? "y" : "x"}" data-wire="${i}" data-seg="${seg}" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`;
+    });
   });
+  for (const j of junctions()) s += `<circle class="junction${j.v ? " one" : ""}" cx="${j.x}" cy="${j.y}" r="3.5"/>`;
+  s += hits;
   for (const c of comps) s += compSVG(c);
   if (drag && drag.kind === "wire") {
     const a = pinPos(drag.from.c, drag.from.p);
@@ -975,7 +1046,7 @@ function renderProps() {
   if (!sel) return;
   const close = `<button class="close" id="pClose" title="Schließen (Esc)" aria-label="Schließen">×</button>`;
   if (sel.w) {
-    el.innerHTML = `${close}<h3>Verbindung</h3><p class="muted">Ziehen verschiebt den senkrechten Abschnitt.</p><button id="pDel" class="danger">Verbindung löschen</button>`;
+    el.innerHTML = `${close}<h3>Verbindung</h3><p class="muted">Ziehen verschiebt den angefassten Abschnitt: senkrechte nach links/rechts, waagrechte nach oben/unten.</p><button id="pDel" class="danger">Verbindung löschen</button>`;
     $("pDel").onclick = deleteSelection;
     $("pClose").onclick = () => select(null);
     return;
@@ -1097,7 +1168,7 @@ svg.addEventListener("pointerdown", e => {
     drag = { kind: "wire", from: { c, p, io }, x: pt.x, y: pt.y, sx: e.clientX, sy: e.clientY };
   } else if (wireEl) {
     const w = wires[+wireEl.dataset.wire];
-    drag = { kind: "bend", w, before: snapshot(), moved: false };
+    drag = { kind: "bend", w, seg: wireEl.dataset.seg, before: snapshot(), moved: false };
     select({ w });
   } else if (compEl) {
     const c = byId(compEl.dataset.comp);
@@ -1125,9 +1196,9 @@ svg.addEventListener("pointermove", e => {
     document.body.classList.add("dragging");
     const x = snap(pt.x - drag.dx), y = snap(pt.y - drag.dy);
     if (x !== drag.c.x || y !== drag.c.y) { drag.c.x = Math.max(0, x); drag.c.y = Math.max(20, y); render(); }
-  } else if (drag.kind === "bend") {
-    const mx = snap(pt.x);
-    if (mx !== drag.w.mx) { drag.w.mx = mx; drag.moved = true; render(); }
+  } else if (drag.kind === "bend" && drag.seg) {
+    const v = bendTo(drag.w, drag.seg, pt);
+    if (v !== drag.w[drag.seg]) { drag.w[drag.seg] = v; drag.moved = true; render(); }
   }
 });
 
